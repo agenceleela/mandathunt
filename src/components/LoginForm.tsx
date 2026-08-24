@@ -1,6 +1,6 @@
 'use client'
 
-import { useFormStatus } from 'react-dom'
+import { useFormState, useFormStatus } from 'react-dom'
 import { login } from '@/lib/auth/actions'
 
 function SubmitButton() {
@@ -18,8 +18,23 @@ function SubmitButton() {
 }
 
 export default function LoginForm() {
+  const [error, formAction] = useFormState(async () => {
+    await login(new FormData())
+    return null
+  }, null)
+
   return (
-    <form action={login} className="space-y-4">
+    <form action={async (formData) => {
+      const email = formData.get('email') as string
+      const password = formData.get('password') as string
+      
+      if (!email || !password) {
+        // Gérer l'erreur localement ou via un state
+        return
+      }
+      
+      await login(formData)
+    }} className="space-y-4">
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           Email
