@@ -1,4 +1,4 @@
--- MandatHut - Initialisation de la base de données
+-- MandatHunt - Initialisation de la base de données
 -- Migration 0001_init.sql
 
 -- ============================================================================
@@ -298,7 +298,7 @@ create policy "read_own_agency_listings" on listings
     )
   );
 
--- agent: UPDATE sur listings de son agence (column_id, assigned_to, rdv_date)
+-- agent: UPDATE sur listings de son agence (column_id, rdv_date) - assigned_to réservé admin/superadmin
 create policy "agent_update_listings" on listings
   for update
   using (

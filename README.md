@@ -1,4 +1,4 @@
-# MandatHut
+# MandatHunt
 
 CRM interne de téléprospection pour mandataires automobiles.
 
@@ -75,7 +75,7 @@ L'application est accessible sur http://localhost:3000
 
 ## Déploiement Vercel
 
-1. Poussez le code sur GitHub : `genceleela/mandathut`
+1. Poussez le code sur GitHub : `agenceleela/mandathunt`
 2. Importez le repo sur Vercel
 3. Ajoutez les variables d'environnement dans Vercel :
    - `NEXT_PUBLIC_SUPABASE_URL`
