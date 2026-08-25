@@ -1,5 +1,6 @@
 -- MandatHunt - Initialisation de la base de données
 -- Migration 0001_init.sql
+-- (2026-08-26 : policies profiles alignées sur la production, sans récursion)
 
 -- ============================================================================
 -- TABLES
@@ -200,29 +201,25 @@ create policy "admin_update_agencies" on agencies
   );
 
 -- ----------------------------------------------------------------------------
--- POLICIES: profiles
+-- POLICIES: profiles (version production 2026-08-25 — sans récursion)
 -- ----------------------------------------------------------------------------
 
--- superadmin: lecture/écriture partout
-create policy "superadmin_full_profiles" on profiles
-  for all
-  using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'superadmin')
-  )
-  with check (
-    exists (select 1 from profiles where id = auth.uid() and role = 'superadmin')
-  );
-
--- admin et agent: lecture des profils de leur agence
-create policy "read_own_agency_profiles" on profiles
+-- chacun lit son propre profil ; superadmin lit tout
+create policy "profiles_select" on profiles
   for select
-  using (
-    exists (
-      select 1 from profiles p
-      where p.id = auth.uid()
-      and (p.agency_id = profiles.agency_id or p.role = 'superadmin')
-    )
-  );
+  using (id = auth.uid() or (my_profile()).role = 'superadmin');
+
+-- superadmin : tous droits
+create policy "profiles_superadmin" on profiles
+  for all
+  using ((my_profile()).role = 'superadmin')
+  with check ((my_profile()).role = 'superadmin');
+
+-- l'utilisateur peut mettre à jour son propre profil
+create policy "profiles_update_self" on profiles
+  for update
+  using (id = auth.uid())
+  with check (id = auth.uid());
 
 -- ----------------------------------------------------------------------------
 -- POLICIES: columns
