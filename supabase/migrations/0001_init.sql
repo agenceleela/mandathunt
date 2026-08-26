@@ -223,6 +223,14 @@ create policy "profiles_update_self" on profiles
   using (id = auth.uid())
   with check (id = auth.uid());
 
+-- Permet à admin/agent de lire les profils de leur propre agence
+CREATE POLICY profiles_select_agency ON profiles
+  FOR SELECT
+  USING (
+    agency_id = (my_profile()).agency_id
+    AND (my_profile()).role IN ('admin', 'superadmin')
+  );
+
 -- ----------------------------------------------------------------------------
 -- POLICIES: columns
 -- ----------------------------------------------------------------------------
