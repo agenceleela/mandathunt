@@ -11,16 +11,7 @@ import {
 } from '@/lib/listing-actions'
 import { moveListing } from '@/lib/board-actions'
 import { CopyPhoneButton } from '@/components/CopyPhoneButton'
-
-function toLocalInput(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`
-}
+import { DateTimePicker } from '@/components/DateTimePicker'
 
 const fmtDateTime = (s: string | null) =>
   s
@@ -249,28 +240,19 @@ export function ListingModal({
                     ))}
                   </select>
                 </label>
-                <label className="block text-sm">
-                  <span className="text-gray-600">Date de RDV</span>
-                  <input
-                    type="datetime-local"
-                    value={toLocalInput(l.rdv_date)}
-                    onChange={(e) =>
-                      run(() => setRdvDate(l.id, e.target.value || null))
-                    }
-                    className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="text-gray-600">Date de rappel</span>
-                  <input
-                    type="datetime-local"
-                    value={toLocalInput(l.rappel_date)}
-                    onChange={(e) =>
-                      run(() => setRappelDate(l.id, e.target.value || null))
-                    }
-                    className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                  />
-                </label>
+
+                <DateTimePicker
+                  label="Date de RDV"
+                  value={l.rdv_date}
+                  onChange={(iso) => run(() => setRdvDate(l.id, iso))}
+                />
+
+                <DateTimePicker
+                  label="Date de rappel"
+                  value={l.rappel_date}
+                  onChange={(iso) => run(() => setRappelDate(l.id, iso))}
+                />
+
                 {canAssign && (
                   <label className="block text-sm">
                     <span className="text-gray-600">Attribution</span>
