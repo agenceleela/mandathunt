@@ -85,16 +85,26 @@ export function ListingModal({
     }
   }
 
-  // Historique source (façon LBC) : du plus ancien au plus récent
-  const timeline = [...priceHistory]
+  // Historique source : du plus ancien au plus récent, avec au minimum
+  // une ligne "Nouvelle publication" (date de publication + prix actuel)
+  const fromHistory = [...priceHistory]
     .reverse()
-    .map((h, i, arr) => ({
+    .map((h, i) => ({
       at: h.at,
       price: h.price,
       label: i === 0 ? 'Nouvelle publication' : 'Modification de prix',
-      isLast: i === arr.length - 1,
     }))
-    .reverse()
+  const timeline = (
+    fromHistory.length
+      ? fromHistory
+      : [
+          {
+            at: l.published_at ?? '',
+            price: l.price,
+            label: 'Nouvelle publication',
+          },
+        ]
+  ).reverse()
 
   const submitNote = () => {
     const t = note.trim()
@@ -110,7 +120,7 @@ export function ListingModal({
     >
       <div className="flex min-h-full items-start justify-center p-4 sm:p-8">
         <div
-          className="w-full max-w-5xl rounded-lg bg-white shadow-xl"
+          className="w-full max-w-6xl rounded-lg bg-white shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* En-tête */}
@@ -150,19 +160,20 @@ export function ListingModal({
             </div>
           )}
 
-          <div className="grid gap-6 p-4 lg:grid-cols-2">
-            {/* Colonne gauche */}
+          {/* 3 colonnes : photo | contacter | gérer */}
+          <div className="grid gap-4 p-4 lg:grid-cols-3">
+            {/* Gauche : photo + prix + caractéristiques + description */}
             <div className="space-y-4">
               <div className="overflow-hidden rounded-lg border border-gray-200">
-                <div className="relative h-64 bg-gray-100">
+                <div className="relative h-56 bg-gray-100">
                   {l.photo_url ? (
                     <img
                       src={l.photo_url}
                       alt=""
-                      className="h-64 w-full object-cover"
+                      className="h-56 w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-64 w-full items-center justify-center text-gray-400">
+                    <div className="flex h-56 w-full items-center justify-center text-gray-400">
                       {l.brand ?? 'Annonce'}
                     </div>
                   )}
@@ -235,22 +246,28 @@ export function ListingModal({
               )}
             </div>
 
-            {/* Colonne droite : modules en cases */}
+            {/* Centre : contacter le propriétaire */}
             <div className="space-y-4">
-              {/* Contacter le propriétaire */}
               <div className="space-y-3 rounded-lg border border-blue-300 p-4">
                 <h2 className="text-sm font-semibold text-gray-900">
                   Contacter le propriétaire
                 </h2>
-                <span className="inline-block rounded border border-orange-300 px-2 py-1 text-xs text-orange-600">
-                  {l.source === 'lbc' ? 'leboncoin' : 'La Centrale'}
-                </span>
                 <div>
-                  <CopyPhoneButton phone={l.phone} phoneE164={l.phone_e164} />
+                  <span className="inline-block rounded border border-orange-300 px-2 py-1 text-xs text-orange-600">
+                    {l.source === 'lbc' ? 'leboncoin' : 'La Centrale'}
+                  </span>
+                </div>
+                <div>
+                  <CopyPhoneButton
+                    phone={l.phone}
+                    phoneE164={l.phone_e164}
+                  />
                 </div>
               </div>
+            </div>
 
-              {/* Géré par / Statut / rappel / RDV */}
+            {/* Droite : gérer + notes + historique */}
+            <div className="space-y-4">
               <div className="space-y-3 rounded-lg border border-green-300 p-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="text-sm">
@@ -259,7 +276,9 @@ export function ListingModal({
                       <select
                         value={l.assigned_to ?? ''}
                         onChange={(e) =>
-                          run(() => assignListing(l.id, e.target.value || null))
+                          run(() =>
+                            assignListing(l.id, e.target.value || null)
+                          )
                         }
                         className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
                       >
@@ -311,7 +330,7 @@ export function ListingModal({
                 )}
               </div>
 
-              {/* Notes */}
+              {/* Notes sous Gérer */}
               <div className="rounded-lg border border-orange-300 p-4">
                 <h2 className="text-sm font-semibold text-gray-900">
                   Notes ({notes.length})
@@ -361,30 +380,29 @@ export function ListingModal({
                 </p>
               </div>
 
-              {/* Historique de l'annonce (source) */}
+              {/* Historique sous Notes */}
               <div className="rounded-lg border border-teal-300 p-4">
                 <h2 className="text-sm font-semibold text-gray-900">
                   Historique de l'annonce ({timeline.length})
                 </h2>
-                {timeline.length === 0 ? (
-                  <p className="mt-2 text-sm text-gray-500">
-                    Aucun historique disponible.
-                  </p>
-                ) : (
-                  <ul className="mt-3 space-y-3 text-sm">
-                    {timeline.map((h, i) => (
-                      <li key={i} className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-gray-500">{fmtDateTime(h.at)}</p>
-                          <p className="text-red-500 text-xs">{h.label}</p>
-                        </div>
-                        <span className="font-semibold text-gray-900">
-                          {h.price.toLocaleString('fr-FR')} €
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ul className="mt-3 space-y-3 text-sm">
+                  {timeline.map((h, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start justify-between gap-2"
+                    >
+                      <div>
+                        <p className="text-gray-500">{fmtDateTime(h.at)}</p>
+                        <p className="text-xs text-red-500">{h.label}</p>
+                      </div>
+                      <span className="font-semibold text-gray-900">
+                        {h.price != null
+                          ? `${h.price.toLocaleString('fr-FR')} €`
+                          : '—'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
