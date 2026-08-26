@@ -31,9 +31,7 @@ export function ZoneForm({
   return (
     <form action={formAction} className="space-y-4">
       <div>
-        <label htmlFor="city" className="block text-sm font-medium mb-1">
-          Ville
-        </label>
+        <label htmlFor="city" className="block text-sm font-medium mb-1">Ville</label>
         <input
           id="city"
           name="city"
@@ -43,9 +41,7 @@ export function ZoneForm({
         />
       </div>
       <div>
-        <label htmlFor="postalCode" className="block text-sm font-medium mb-1">
-          Code postal
-        </label>
+        <label htmlFor="postalCode" className="block text-sm font-medium mb-1">Code postal</label>
         <input
           id="postalCode"
           name="postalCode"
@@ -55,9 +51,7 @@ export function ZoneForm({
         />
       </div>
       <div>
-        <label htmlFor="radiusKm" className="block text-sm font-medium mb-1">
-          Rayon (km)
-        </label>
+        <label htmlFor="radiusKm" className="block text-sm font-medium mb-1">Rayon (km)</label>
         <input
           id="radiusKm"
           name="radiusKm"
