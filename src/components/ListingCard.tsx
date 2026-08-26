@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 export type Listing = {
   id: string
@@ -40,7 +41,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden cursor-grab">
-      <div className="relative h-32 bg-gray-100">
+      <Link href={`/annonces/${listing.id}`} className="block relative h-32 bg-gray-100">
         {listing.photo_url && !imgError ? (
           <img
             src={listing.photo_url}
@@ -56,16 +57,29 @@ export function ListingCard({ listing }: { listing: Listing }) {
         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-2 py-1">
           {listing.city} {listing.postal_code}
         </div>
-      </div>
+      </Link>
 
       <div className="p-3 space-y-2">
-        <p className="text-sm font-semibold text-gray-900">{listing.title}</p>
+        <Link
+          href={`/annonces/${listing.id}`}
+          className="block text-sm font-semibold text-gray-900 hover:text-indigo-600"
+        >
+          {listing.title}
+        </Link>
 
         <div className="flex items-center justify-between gap-2">
           <p className="text-red-600 font-bold">
-            {listing.price != null ? `${listing.price.toLocaleString('fr-FR')} €` : '—'}
+            {listing.price != null
+              ? `${listing.price.toLocaleString('fr-FR')} €`
+              : '—'}
             {listing.trend && (
-              <span className={listing.trend.dir === 'up' ? 'ml-1 text-red-600' : 'ml-1 text-green-600'}>
+              <span
+                className={
+                  listing.trend.dir === 'up'
+                    ? 'ml-1 text-red-600'
+                    : 'ml-1 text-green-600'
+                }
+              >
                 {listing.trend.dir === 'up' ? '↗' : '↘'} {listing.trend.pct}%
               </span>
             )}
@@ -85,7 +99,10 @@ export function ListingCard({ listing }: { listing: Listing }) {
           {listing.model} – {listing.year}
         </p>
         <p className="text-xs text-gray-600">
-          {listing.mileage != null ? listing.mileage.toLocaleString('fr-FR') : '—'} km – {listing.fuel}
+          {listing.mileage != null
+            ? listing.mileage.toLocaleString('fr-FR')
+            : '—'}{' '}
+          km – {listing.fuel}
         </p>
         <p className="text-xs text-gray-500">
           Publié le{' '}
