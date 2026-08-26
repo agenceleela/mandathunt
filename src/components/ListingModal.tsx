@@ -65,11 +65,13 @@ export function ListingModal({
     columns,
     notes,
     priceHistory,
-    statusHistory,
     profiles,
     canAssign,
     currentColumnName,
   } = details
+
+  const assignedName =
+    profiles.find((p) => p.id === l.assigned_to)?.name ?? null
 
   let trend: { dir: 'up' | 'down'; pct: number } | null = null
   if (priceHistory.length >= 2) {
@@ -81,6 +83,24 @@ export function ListingModal({
         pct: Math.round((Math.abs(last - prev) / prev) * 100),
       }
     }
+  }
+
+  // Historique source (façon LBC) : du plus ancien au plus récent
+  const timeline = [...priceHistory]
+    .reverse()
+    .map((h, i, arr) => ({
+      at: h.at,
+      price: h.price,
+      label: i === 0 ? 'Nouvelle publication' : 'Modification de prix',
+      isLast: i === arr.length - 1,
+    }))
+    .reverse()
+
+  const submitNote = () => {
+    const t = note.trim()
+    if (!t) return
+    setNote('')
+    run(() => addNote(l.id, t))
   }
 
   return (
@@ -100,9 +120,6 @@ export function ListingModal({
                 <h1 className="text-lg font-bold text-gray-900">
                   {l.title ?? 'Annonce'}
                 </h1>
-                <span className="text-[10px] uppercase bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
-                  {l.source === 'lbc' ? 'LBC' : 'La Centrale'}
-                </span>
                 {l.url && (
                   <a
                     href={l.url}
@@ -110,7 +127,7 @@ export function ListingModal({
                     rel="noopener noreferrer"
                     className="text-sm text-indigo-600 hover:underline"
                   >
-                    Voir l'annonce originale
+                    Consulter
                   </a>
                 )}
               </div>
@@ -153,29 +170,27 @@ export function ListingModal({
                     {l.city} {l.postal_code}
                   </div>
                 </div>
-                <div className="space-y-2 p-4">
-                  <p className="text-2xl font-bold text-red-600">
-                    {l.price != null
-                      ? `${l.price.toLocaleString('fr-FR')} €`
-                      : '—'}
-                    {trend && (
-                      <span
-                        className={
-                          trend.dir === 'up'
-                            ? 'ml-2 text-base text-red-600'
-                            : 'ml-2 text-base text-green-600'
-                        }
-                      >
-                        {trend.dir === 'up' ? '↗' : '↘'} {trend.pct}%
-                      </span>
-                    )}
-                  </p>
-                  <CopyPhoneButton phone={l.phone} phoneE164={l.phone_e164} />
-                </div>
               </div>
 
-              <div className="rounded-lg border border-gray-200 p-4">
-                <h2 className="mb-3 font-semibold text-gray-900">
+              <p className="text-2xl font-bold text-red-600">
+                {l.price != null
+                  ? `${l.price.toLocaleString('fr-FR')} €`
+                  : '—'}
+                {trend && (
+                  <span
+                    className={
+                      trend.dir === 'up'
+                        ? 'ml-2 text-base text-red-600'
+                        : 'ml-2 text-base text-green-600'
+                    }
+                  >
+                    {trend.dir === 'up' ? '↗' : '↘'} {trend.pct}%
+                  </span>
+                )}
+              </p>
+
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-gray-900">
                   Caractéristiques
                 </h2>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -209,8 +224,8 @@ export function ListingModal({
               </div>
 
               {l.description && (
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <h2 className="mb-2 font-semibold text-gray-900">
+                <div>
+                  <h2 className="mb-2 text-sm font-semibold text-gray-900">
                     Description
                   </h2>
                   <p className="whitespace-pre-wrap text-sm text-gray-700">
@@ -220,66 +235,85 @@ export function ListingModal({
               )}
             </div>
 
-            {/* Colonne droite */}
+            {/* Colonne droite : modules en cases */}
             <div className="space-y-4">
-              <div className="space-y-3 rounded-lg border border-green-200 p-4">
-                <h2 className="font-semibold text-gray-900">Actions</h2>
-                <label className="block text-sm">
-                  <span className="text-gray-600">Statut (colonne)</span>
-                  <select
-                    value={l.column_id ?? ''}
-                    onChange={(e) =>
-                      run(() => moveListing(l.id, e.target.value))
-                    }
-                    className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                  >
-                    {columns.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {/* Contacter le propriétaire */}
+              <div className="space-y-3 rounded-lg border border-blue-300 p-4">
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Contacter le propriétaire
+                </h2>
+                <span className="inline-block rounded border border-orange-300 px-2 py-1 text-xs text-orange-600">
+                  {l.source === 'lbc' ? 'leboncoin' : 'La Centrale'}
+                </span>
+                <div>
+                  <CopyPhoneButton phone={l.phone} phoneE164={l.phone_e164} />
+                </div>
+              </div>
+
+              {/* Géré par / Statut / rappel / RDV */}
+              <div className="space-y-3 rounded-lg border border-green-300 p-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-sm">
+                    <span className="text-xs text-gray-500">Géré par</span>
+                    {canAssign ? (
+                      <select
+                        value={l.assigned_to ?? ''}
+                        onChange={(e) =>
+                          run(() => assignListing(l.id, e.target.value || null))
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                      >
+                        <option value="">Non attribué</option>
+                        {profiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="mt-1 text-gray-900">
+                        {assignedName ?? 'Non attribué'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-xs text-gray-500">Statut</span>
+                    <select
+                      value={l.column_id ?? ''}
+                      onChange={(e) =>
+                        run(() => moveListing(l.id, e.target.value))
+                      }
+                      className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
+                    >
+                      {columns.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 <DateTimePicker
-                  label="Date de RDV"
-                  value={l.rdv_date}
-                  onChange={(iso) => run(() => setRdvDate(l.id, iso))}
-                />
-
-                <DateTimePicker
-                  label="Date de rappel"
+                  label="Définir un rappel"
                   value={l.rappel_date}
                   onChange={(iso) => run(() => setRappelDate(l.id, iso))}
                 />
 
-                {canAssign && (
-                  <label className="block text-sm">
-                    <span className="text-gray-600">Attribution</span>
-                    <select
-                      value={l.assigned_to ?? ''}
-                      onChange={(e) =>
-                        run(() => assignListing(l.id, e.target.value || null))
-                      }
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm text-gray-900"
-                    >
-                      <option value="">Non attribué</option>
-                      {profiles.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+                <DateTimePicker
+                  label="Ajouter un rendez-vous"
+                  value={l.rdv_date}
+                  onChange={(iso) => run(() => setRdvDate(l.id, iso))}
+                />
+
                 {pending && (
                   <p className="text-xs text-gray-500">Enregistrement…</p>
                 )}
               </div>
 
-              {/* Notes : liste + ajout dans le même bloc */}
-              <div className="rounded-lg border border-orange-200 p-4">
-                <h2 className="font-semibold text-gray-900">
+              {/* Notes */}
+              <div className="rounded-lg border border-orange-300 p-4">
+                <h2 className="text-sm font-semibold text-gray-900">
                   Notes ({notes.length})
                 </h2>
                 <ul className="mt-3 space-y-3">
@@ -300,68 +334,53 @@ export function ListingModal({
                     </li>
                   ))}
                 </ul>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    const t = note
-                    setNote('')
-                    run(() => addNote(l.id, t))
-                  }}
-                  className="mt-4 flex items-start gap-2"
-                >
+                <div className="mt-4 flex items-start gap-2">
                   <textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        submitNote()
+                      }
+                    }}
                     rows={2}
                     placeholder="Entrez votre note ici…"
                     className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400"
                   />
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={submitNote}
                     className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700"
                   >
                     Ajouter
                   </button>
-                </form>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Entrée pour ajouter · Maj+Entrée pour aller à la ligne
+                </p>
               </div>
 
-              <div className="rounded-lg border border-blue-200 p-4">
-                <h2 className="mb-3 font-semibold text-gray-900">
-                  Historique de l'annonce ({priceHistory.length + statusHistory.length})
+              {/* Historique de l'annonce (source) */}
+              <div className="rounded-lg border border-teal-300 p-4">
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Historique de l'annonce ({timeline.length})
                 </h2>
-                <h3 className="text-xs font-semibold uppercase text-gray-500">
-                  Prix
-                </h3>
-                {priceHistory.length === 0 ? (
-                  <p className="mt-1 text-sm text-gray-500">
-                    Aucune variation de prix.
+                {timeline.length === 0 ? (
+                  <p className="mt-2 text-sm text-gray-500">
+                    Aucun historique disponible.
                   </p>
                 ) : (
-                  <ul className="mt-1 space-y-1 text-sm">
-                    {priceHistory.map((h, i) => (
-                      <li key={i} className="flex justify-between">
-                        <span className="text-gray-500">{fmtDateTime(h.at)}</span>
-                        <span className="text-gray-900">
+                  <ul className="mt-3 space-y-3 text-sm">
+                    {timeline.map((h, i) => (
+                      <li key={i} className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-gray-500">{fmtDateTime(h.at)}</p>
+                          <p className="text-red-500 text-xs">{h.label}</p>
+                        </div>
+                        <span className="font-semibold text-gray-900">
                           {h.price.toLocaleString('fr-FR')} €
                         </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <h3 className="mt-3 text-xs font-semibold uppercase text-gray-500">
-                  Statuts
-                </h3>
-                {statusHistory.length === 0 ? (
-                  <p className="mt-1 text-sm text-gray-500">Aucun déplacement.</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-sm">
-                    {statusHistory.map((s, i) => (
-                      <li key={i} className="flex justify-between gap-2">
-                        <span className="text-gray-900">
-                          {s.from ?? '—'} → {s.to ?? '—'}
-                          {s.author ? ` · ${s.author}` : ''}
-                        </span>
-                        <span className="text-gray-500">{fmtDateTime(s.at)}</span>
                       </li>
                     ))}
                   </ul>
