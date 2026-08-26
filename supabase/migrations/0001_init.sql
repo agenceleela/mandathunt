@@ -228,7 +228,7 @@ CREATE POLICY profiles_select_agency ON profiles
   FOR SELECT
   USING (
     agency_id = (my_profile()).agency_id
-    AND (my_profile()).role IN ('admin', 'superadmin')
+    AND (my_profile()).agency_id IS NOT NULL
   );
 
 -- ----------------------------------------------------------------------------
