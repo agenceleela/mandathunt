@@ -2,9 +2,6 @@
 
 import { useFormState } from 'react-dom';
 import { updateZone } from '@/lib/admin/actions';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 interface ZoneFormProps {
   agencyId: string;
@@ -34,26 +31,34 @@ export function ZoneForm({
   return (
     <form action={formAction} className="space-y-4">
       <div>
-        <Label htmlFor="city">Ville</Label>
-        <Input
+        <label htmlFor="city" className="block text-sm font-medium mb-1">
+          Ville
+        </label>
+        <input
           id="city"
           name="city"
           defaultValue={initialCity}
           required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
       <div>
-        <Label htmlFor="postalCode">Code postal</Label>
-        <Input
+        <label htmlFor="postalCode" className="block text-sm font-medium mb-1">
+          Code postal
+        </label>
+        <input
           id="postalCode"
           name="postalCode"
           defaultValue={initialPostalCode}
           required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
       <div>
-        <Label htmlFor="radiusKm">Rayon (km)</Label>
-        <Input
+        <label htmlFor="radiusKm" className="block text-sm font-medium mb-1">
+          Rayon (km)
+        </label>
+        <input
           id="radiusKm"
           name="radiusKm"
           type="number"
@@ -61,10 +66,16 @@ export function ZoneForm({
           max="200"
           defaultValue={initialRadiusKm}
           required
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
       {state && <p className="text-red-600 text-sm">{state}</p>}
-      <Button type="submit">Enregistrer la zone</Button>
+      <button
+        type="submit"
+        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        Enregistrer la zone
+      </button>
     </form>
   );
 }
