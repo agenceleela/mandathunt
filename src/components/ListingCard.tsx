@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 
 export type Listing = {
   id: string
@@ -24,7 +23,13 @@ export type Listing = {
   trend: { dir: 'up' | 'down'; pct: number } | null
 }
 
-export function ListingCard({ listing }: { listing: Listing }) {
+export function ListingCard({
+  listing,
+  onOpen,
+}: {
+  listing: Listing
+  onOpen: () => void
+}) {
   const [copied, setCopied] = useState(false)
   const [imgError, setImgError] = useState(false)
 
@@ -41,7 +46,11 @@ export function ListingCard({ listing }: { listing: Listing }) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden cursor-grab">
-      <Link href={`/annonces/${listing.id}`} className="block relative h-32 bg-gray-100">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full text-left relative h-32 bg-gray-100"
+      >
         {listing.photo_url && !imgError ? (
           <img
             src={listing.photo_url}
@@ -57,15 +66,16 @@ export function ListingCard({ listing }: { listing: Listing }) {
         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs px-2 py-1">
           {listing.city} {listing.postal_code}
         </div>
-      </Link>
+      </button>
 
       <div className="p-3 space-y-2">
-        <Link
-          href={`/annonces/${listing.id}`}
-          className="block text-sm font-semibold text-gray-900 hover:text-indigo-600"
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block w-full text-left text-sm font-semibold text-gray-900 hover:text-indigo-600"
         >
           {listing.title}
-        </Link>
+        </button>
 
         <div className="flex items-center justify-between gap-2">
           <p className="text-red-600 font-bold">
