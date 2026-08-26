@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const HEURES = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5)
@@ -26,6 +26,7 @@ export function DateTimePicker({
   value: string | null
   onChange: (iso: string | null) => void
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [viewYear, setViewYear] = useState(new Date().getFullYear())
   const [viewMonth, setViewMonth] = useState(new Date().getMonth())
@@ -34,6 +35,18 @@ export function DateTimePicker({
   )
   const [hour, setHour] = useState(0)
   const [minute, setMinute] = useState(0)
+
+  // Fermer sans enregistrer quand on clique ailleurs
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
 
   const openPopup = () => {
     if (value) {
@@ -92,8 +105,11 @@ export function DateTimePicker({
     setOpen(false)
   }
 
+  const scrollSansBarre =
+    'overflow-y-auto rounded border border-gray-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+
   return (
-    <div className="relative block text-sm">
+    <div ref={rootRef} className="relative block text-sm">
       <span className="text-gray-600">{label}</span>
       <button
         type="button"
@@ -144,7 +160,10 @@ export function DateTimePicker({
                       type="button"
                       onClick={() => setSel({ y: viewYear, m: viewMonth, d })}
                       className={
-                        sel && sel.y === viewYear && sel.m === viewMonth && sel.d === d
+                        sel &&
+                        sel.y === viewYear &&
+                        sel.m === viewMonth &&
+                        sel.d === d
                           ? 'mx-auto my-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-red-400 text-red-600'
                           : 'mx-auto my-0.5 flex h-7 w-7 items-center justify-center rounded-full text-gray-800 hover:bg-gray-100'
                       }
@@ -156,9 +175,9 @@ export function DateTimePicker({
               </div>
             </div>
 
-            {/* Heures / minutes */}
+            {/* Heures / minutes (défilement sans barres visibles) */}
             <div className="flex gap-1">
-              <div className="max-h-44 w-12 overflow-y-auto rounded border border-gray-200">
+              <div className={`max-h-44 w-12 ${scrollSansBarre}`}>
                 {HEURES.map((h) => (
                   <button
                     key={h}
@@ -174,7 +193,7 @@ export function DateTimePicker({
                   </button>
                 ))}
               </div>
-              <div className="max-h-44 w-12 overflow-y-auto rounded border border-gray-200">
+              <div className={`max-h-44 w-12 ${scrollSansBarre}`}>
                 {MINUTES.map((m) => (
                   <button
                     key={m}
