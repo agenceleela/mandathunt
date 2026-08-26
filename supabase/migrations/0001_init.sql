@@ -1,6 +1,7 @@
 -- MandatHunt - Initialisation de la base de données
 -- Migration 0001_init.sql
--- (2026-08-26 : policies profiles alignées sur la production, sans récursion)
+-- (2026-08-26 : policies profiles alignées sur la production, sans récursion ;
+--  2026-08-26 : listings rdv_date restauré + rappel_date ajouté)
 
 -- ============================================================================
 -- TABLES
@@ -67,6 +68,7 @@ create table listings (
   column_id uuid references columns on delete set null,
   assigned_to uuid references profiles on delete set null,
   rdv_date timestamptz,
+  rappel_date timestamptz,
   published_at timestamptz,
   first_seen_at timestamptz default now(),
   last_updated_at timestamptz,
