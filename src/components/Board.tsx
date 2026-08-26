@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListingCard, type Listing } from '@/components/ListingCard'
+import { ListingModal } from '@/components/ListingModal'
 import { moveListing } from '@/lib/board-actions'
 
 export type Column = {
@@ -12,25 +13,37 @@ export type Column = {
   position: number
 }
 
-export function Board({ columns, listings }: { columns: Column[]; listings: Listing[] }) {
+export function Board({
+  columns,
+  listings,
+}: {
+  columns: Column[]
+  listings: Listing[]
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<'date' | 'price_asc' | 'price_desc'>('date')
   const [dragId, setDragId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const base = q
       ? listings.filter((l) =>
-          [l.title, l.brand, l.model].some((v) => (v ?? '').toLowerCase().includes(q))
+          [l.title, l.brand, l.model].some((v) =>
+            (v ?? '').toLowerCase().includes(q)
+          )
         )
       : listings
     const sorted = [...base]
     if (sort === 'date')
-      sorted.sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''))
+      sorted.sort((a, b) =>
+        (b.published_at ?? '').localeCompare(a.published_at ?? '')
+      )
     if (sort === 'price_asc') sorted.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
-    if (sort === 'price_desc') sorted.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+    if (sort === 'price_desc')
+      sorted.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
     return sorted
   }, [listings, search, sort])
 
@@ -84,7 +97,9 @@ export function Board({ columns, listings }: { columns: Column[]; listings: List
                 <span className="text-sm text-gray-500">({cards.length})</span>
               </div>
               {cards.length === 0 ? (
-                <p className="text-xs text-gray-500">Aucune annonce dans cette colonne</p>
+                <p className="text-xs text-gray-500">
+                  Aucune annonce dans cette colonne
+                </p>
               ) : (
                 cards.map((l) => (
                   <div
@@ -94,7 +109,7 @@ export function Board({ columns, listings }: { columns: Column[]; listings: List
                     onDragEnd={() => setDragId(null)}
                     className={dragId === l.id ? 'opacity-50' : ''}
                   >
-                    <ListingCard listing={l} />
+                    <ListingCard listing={l} onOpen={() => setOpenId(l.id)} />
                   </div>
                 ))
               )}
@@ -102,6 +117,10 @@ export function Board({ columns, listings }: { columns: Column[]; listings: List
           )
         })}
       </div>
+
+      {openId && (
+        <ListingModal listingId={openId} onClose={() => setOpenId(null)} />
+      )}
     </div>
   )
 }
