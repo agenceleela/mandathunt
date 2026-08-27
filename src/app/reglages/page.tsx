@@ -1,167 +1,185 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { AgencySelector } from '@/components/admin/AgencySelector';
-import { AuthoritySelect } from '@/components/admin/AuthoritySelect';
-import { ZoneForm } from '@/components/admin/ZoneForm';
-import { CriteriaForm } from '@/components/admin/CriteriaForm';
-import { ColumnsManager } from '@/components/admin/ColumnsManager';
-import { UsersManager } from '@/components/admin/UsersManager';
+import type { Metadata } from 'next'
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { ZoneForm } from '@/components/admin/ZoneForm'
+import { CriteriaForm, type Criteria } from '@/components/admin/CriteriaForm'
+import { ColumnsManager, type ColumnRow } from '@/components/admin/ColumnsManager'
+import { UsersManager, type UserRow } from '@/components/admin/UsersManager'
+import { AgencySelector } from '@/components/admin/AgencySelector'
+import { AuthoritySelect } from '@/components/admin/AuthoritySelect'
 
-export default async function ReglagesPage() {
-  const supabase = await createClient();
+export const metadata: Metadata = {
+  title: 'Réglages — MandatHunt',
+}
 
+const DEFAULT_CRITERIA: Criteria = {
+  price_min: null,
+  price_max: null,
+  year_min: null,
+  mileage_max: null,
+  has_phone: false,
+  sources: ['lbc', 'lacentrale'],
+}
+
+export default async function ReglagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
+  const params = await searchParams
+  const supabase = await createClient()
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, agency_id, first_name, last_name')
+    .select('id, role, agency_id')
     .eq('id', user.id)
-    .single();
+    .single()
+  if (!profile) redirect('/')
 
-  if (!profile) {
-    redirect('/login');
-  }
+  const role = profile.role as string
+  if (role !== 'superadmin' && role !== 'admin') redirect('/')
 
-  if (profile.role !== 'admin' && profile.role !== 'superadmin') {
-    redirect('/');
+  // Déterminer l'agence gérée (superadmin : sélecteur ; admin : son agence)
+  let agencyId: string | null = (profile.agency_id as string | null) ?? null
+  let agencies: { id: string; name: string }[] = []
+  if (role === 'superadmin') {
+    const { data: rows } = await supabase
+      .from('agencies')
+      .select('id, name')
+      .order('name')
+    agencies = (rows as { id: string; name: string }[] | null) ?? []
+    const wanted = params.agence ?? null
+    const found =
+      agencies.find((a) => a.id === wanted) ??
+      agencies.find((a) => a.id === agencyId) ??
+      agencies[0] ??
+      null
+    agencyId = found ? found.id : null
   }
+  if (!agencyId) redirect('/')
 
   const { data: agency } = await supabase
     .from('agencies')
     .select('*')
-    .eq('id', profile.agency_id)
-    .single();
+    .eq('id', agencyId)
+    .single()
+  if (!agency) redirect('/')
 
-  if (!agency) {
-    redirect('/');
+  const a = agency as Record<string, unknown>
+
+  // D16 : un admin n'a autorité que s'il est désigné (authority_admin_id)
+  if (
+    role === 'admin' &&
+    (a.authority_admin_id as string | null | undefined) !== user.id
+  ) {
+    redirect('/')
   }
 
-  // Pour le superadmin : liste des agences
-  let agencies: { id: string; name: string }[] = [];
-  if (profile.role === 'superadmin') {
-    const { data } = await supabase
-      .from('agencies')
-      .select('id, name')
-      .order('name');
-    agencies = data || [];
-  }
-
-  // Admins de l'agence (pour AuthoritySelect)
-  const { data: agencyAdmins } = await supabase
-    .from('profiles')
-    .select('id, first_name, last_name, email')
-    .eq('agency_id', agency.id)
-    .eq('role', 'admin');
-
-  // Colonnes de l'agence
-  const { data: columns } = await supabase
+  const { data: columnsRaw } = await supabase
     .from('columns')
     .select('id, name, color, position')
-    .eq('agency_id', agency.id)
-    .order('position');
+    .eq('agency_id', agencyId)
+    .order('position', { ascending: true })
 
-  // Utilisateurs de l'agence
-  const { data: users } = await supabase
+  const { data: usersRaw } = await supabase
     .from('profiles')
     .select('id, email, first_name, last_name, role')
-    .eq('agency_id', agency.id)
-    .order('role');
+    .eq('agency_id', agencyId)
+    .order('created_at', { ascending: true })
 
-  // Critères par défaut
-  const defaultCriteria = {
-    price_min: null,
-    price_max: null,
-    year_min: null,
-    mileage_max: null,
-    has_phone: false,
-    sources: ['lbc', 'lacentrale'],
-  };
+  const { data: adminsRaw } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, email')
+    .eq('agency_id', agencyId)
+    .eq('role', 'admin')
 
-  const criteria = agency.criteria
-    ? { ...defaultCriteria, ...agency.criteria }
-    : defaultCriteria;
+  const agencyAdmins = (
+    (adminsRaw as
+      | {
+          id: string
+          first_name: string | null
+          last_name: string | null
+          email: string | null
+        }[]
+      | null) ?? []
+  ).map((p) => ({
+    id: p.id,
+    first_name: p.first_name ?? '',
+    last_name: p.last_name ?? '',
+    email: p.email ?? '',
+  }))
+
+  const criteria: Criteria = {
+    ...DEFAULT_CRITERIA,
+    ...((a.criteria as Partial<Criteria> | null) ?? {}),
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Réglages</h1>
-          <a
-            href="/"
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Retour au board
-          </a>
-        </div>
-
-        {/* Sélecteur d'agence (superadmin uniquement) */}
-        {profile.role === 'superadmin' && agencies.length > 0 && (
-          <AgencySelector agencies={agencies} currentId={agency.id} />
-        )}
-
-        {/* Autorité (superadmin uniquement) */}
-        {profile.role === 'superadmin' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Autorité
-            </h2>
-            <AuthoritySelect
-              agencyId={agency.id}
-              currentAdminId={agency.authority_admin_id ?? null}
-              agencyAdmins={agencyAdmins || []}
-            />
+    <div className="container mx-auto py-8 max-w-4xl">
+      <div className="mb-8 space-y-4">
+        <h1 className="text-3xl font-bold">Réglages</h1>
+        {role === 'superadmin' && agencies.length > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">Agence :</span>
+            <AgencySelector agencies={agencies} currentId={agencyId} />
           </div>
         )}
+        <p className="text-sm text-gray-600">
+          {(a.name as string) ?? ''}
+          {(a.city as string) ? ` — ${a.city as string}` : ''}
+        </p>
+      </div>
 
-        {/* Zone */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Zone</h2>
+      {role === 'superadmin' && (
+        <section className="space-y-4 mb-8">
+          <h2 className="text-2xl font-semibold">Autorité de gestion</h2>
+          <AuthoritySelect
+            agencyId={agencyId}
+            currentAdminId={
+              (a.authority_admin_id as string | null | undefined) ?? null
+            }
+            agencyAdmins={agencyAdmins}
+          />
+        </section>
+      )}
+
+      <div className="space-y-8">
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Zone de chalandise</h2>
           <ZoneForm
-            agencyId={agency.id}
-            initialCity={agency.city || ''}
-            initialPostalCode={agency.postal_code || ''}
-            initialRadiusKm={agency.radius_km ?? 20}
+            agencyId={agencyId}
+            initialCity={(a.city as string) ?? ''}
+            initialPostalCode={(a.postal_code as string) ?? ''}
+            initialRadiusKm={(a.radius_km as number) ?? 20}
           />
-        </div>
+        </section>
 
-        {/* Critères */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Critères initiaux
-          </h2>
-          <CriteriaForm agencyId={agency.id} initialCriteria={criteria} />
-        </div>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Critères de filtrage</h2>
+          <CriteriaForm agencyId={agencyId} initialCriteria={criteria} />
+        </section>
 
-        {/* Colonnes */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Colonnes du board
-          </h2>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Colonnes du board</h2>
           <ColumnsManager
-            agencyId={agency.id}
-            initialColumns={columns || []}
+            agencyId={agencyId}
+            initialColumns={(columnsRaw as ColumnRow[] | null) ?? []}
           />
-        </div>
+        </section>
 
-        {/* Utilisateurs */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Utilisateurs de l&#39;agence
-          </h2>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Utilisateurs</h2>
           <UsersManager
-            agencyId={agency.id}
-            initialUsers={users || []}
+            agencyId={agencyId}
+            initialUsers={(usersRaw as UserRow[] | null) ?? []}
             currentUserId={user.id}
-            canCreateAdmins={profile.role === 'superadmin'}
           />
-        </div>
+        </section>
       </div>
     </div>
-  );
+  )
 }

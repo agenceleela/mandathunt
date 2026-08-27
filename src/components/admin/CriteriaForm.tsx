@@ -2,6 +2,7 @@
 
 import { useFormState } from 'react-dom'
 import { updateCriteria } from '@/lib/admin/actions'
+import { SubmitButton } from '@/components/SubmitButton'
 
 export type Criteria = {
   price_min: number | null
@@ -17,9 +18,13 @@ interface CriteriaFormProps {
   initialCriteria: Criteria
 }
 
+const inputClass =
+  'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+
 export function CriteriaForm({ agencyId, initialCriteria }: CriteriaFormProps) {
   const [state, formAction] = useFormState(
-    async (_prev: string | null, formData: FormData) => {
+    async (prev: string | null, formData: FormData) => {
+      void prev
       try {
         const criteria: Criteria = {
           price_min: formData.get('price_min')
@@ -64,7 +69,7 @@ export function CriteriaForm({ agencyId, initialCriteria }: CriteriaFormProps) {
             type="number"
             min="0"
             defaultValue={initialCriteria.price_min ?? ''}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+            className={inputClass}
           />
         </div>
         <div>
@@ -77,7 +82,7 @@ export function CriteriaForm({ agencyId, initialCriteria }: CriteriaFormProps) {
             type="number"
             min="0"
             defaultValue={initialCriteria.price_max ?? ''}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+            className={inputClass}
           />
         </div>
       </div>
@@ -93,7 +98,7 @@ export function CriteriaForm({ agencyId, initialCriteria }: CriteriaFormProps) {
             min="1950"
             max="2030"
             defaultValue={initialCriteria.year_min ?? ''}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+            className={inputClass}
           />
         </div>
         <div>
@@ -109,17 +114,17 @@ export function CriteriaForm({ agencyId, initialCriteria }: CriteriaFormProps) {
             type="number"
             min="0"
             defaultValue={initialCriteria.mileage_max ?? ''}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+            className={inputClass}
           />
         </div>
       </div>
       <div className="flex items-center space-x-2">
         <input
-          type="checkbox"
           id="has_phone"
           name="has_phone"
+          type="checkbox"
           defaultChecked={initialCriteria.has_phone}
-          className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+          className="h-4 w-4 rounded border-gray-300"
         />
         <label htmlFor="has_phone" className="text-sm font-medium">
           Téléphone obligatoire
@@ -129,36 +134,31 @@ export function CriteriaForm({ agencyId, initialCriteria }: CriteriaFormProps) {
         <span className="block text-sm font-medium">Sources</span>
         <div className="flex items-center space-x-2">
           <input
-            type="checkbox"
             id="source_lbc"
             name="source_lbc"
+            type="checkbox"
             defaultChecked={initialCriteria.sources.includes('lbc')}
-            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+            className="h-4 w-4 rounded border-gray-300"
           />
-          <label htmlFor="source_lbc" className="text-sm font-medium">
+          <label htmlFor="source_lbc" className="text-sm">
             leboncoin
           </label>
         </div>
         <div className="flex items-center space-x-2">
           <input
-            type="checkbox"
             id="source_lacentrale"
             name="source_lacentrale"
+            type="checkbox"
             defaultChecked={initialCriteria.sources.includes('lacentrale')}
-            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+            className="h-4 w-4 rounded border-gray-300"
           />
-          <label htmlFor="source_lacentrale" className="text-sm font-medium">
+          <label htmlFor="source_lacentrale" className="text-sm">
             La Centrale
           </label>
         </div>
       </div>
       {state && <p className="text-red-600 text-sm">{state}</p>}
-      <button
-        type="submit"
-        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-      >
-        Enregistrer les critères
-      </button>
+      <SubmitButton>Enregistrer les critères</SubmitButton>
     </form>
   )
 }
