@@ -60,37 +60,50 @@ export default async function ReglagesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-4xl px-4">
-      <h1 className="text-3xl font-bold mb-8">Réglages</h1>
-      <div className="space-y-8">
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">Zone de chalandise</h2>
-          <ZoneForm
-            agencyId={agency.id}
-            initialCity={agency.city}
-            initialPostalCode={agency.postal_code}
-            initialRadiusKm={agency.radius_km}
-          />
-        </section>
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">Critères de filtrage</h2>
-          <CriteriaForm agencyId={agency.id} initialCriteria={criteria} />
-        </section>
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">Colonnes du board</h2>
-          <ColumnsManager
-            agencyId={agency.id}
-            initialColumns={(columnsRaw as ColumnRow[] | null) ?? []}
-          />
-        </section>
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">Utilisateurs</h2>
-          <UsersManager
-            agencyId={agency.id}
-            initialUsers={(usersRaw as UserRow[] | null) ?? []}
-            currentUserId={user.id}
-          />
-        </section>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Réglages</h1>
+        <div className="space-y-8">
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+              Zone de chalandise
+            </h2>
+            <ZoneForm
+              agencyId={agency.id}
+              initialCity={agency.city}
+              initialPostalCode={agency.postal_code}
+              initialRadiusKm={agency.radius_km}
+            />
+          </section>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+              Critères de filtrage
+            </h2>
+            <CriteriaForm agencyId={agency.id} initialCriteria={criteria} />
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+              Colonnes du board
+            </h2>
+            <ColumnsManager
+              agencyId={agency.id}
+              initialColumns={(columnsRaw as ColumnRow[] | null) ?? []}
+            />
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+              Utilisateurs
+            </h2>
+            <UsersManager
+              agencyId={agency.id}
+              initialUsers={(usersRaw as UserRow[] | null) ?? []}
+              currentUserId={user.id}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
