@@ -40,7 +40,7 @@ export function ColumnsManager({
 
   const handleUpdate = async (columnId: string) => {
     if (!editName.trim()) return
-    await updateColumn(columnId, editName.trim(), editColor)
+    await updateColumn(agencyId, columnId, editName.trim(), editColor)
     setEditingId(null)
   }
 
@@ -51,7 +51,7 @@ export function ColumnsManager({
       )
     )
       return
-    await deleteColumn(columnId)
+    await deleteColumn(agencyId, columnId)
   }
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
@@ -66,7 +66,7 @@ export function ColumnsManager({
     const [removed] = newColumns.splice(dragIndex, 1)
     newColumns.splice(dropIndex, 0, removed)
     setColumns(newColumns)
-    await reorderColumns(newColumns.map((c) => c.id))
+    await reorderColumns(agencyId, newColumns.map((c) => c.id))
   }
 
   return (
