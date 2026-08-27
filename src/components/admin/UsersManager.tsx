@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useActionState } from "react-dom";
+import { useActionState } from "react";
 import { deleteUserAction, inviteUserAction } from "@/lib/admin/actions";
 import { SubmitButton } from "@/components/SubmitButton";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Profile = {
   id: string;
@@ -16,19 +13,19 @@ type Profile = {
   role: "superadmin" | "admin" | "agent";
 };
 
-// Composant isolé pour éviter l'erreur React #441 (Hooks dans une boucle)
+// Composant isolé pour éviter l'erreur React #441 (Hooks dans une boucle .map)
 function DeleteUserForm({ userId, isSuperadmin }: { userId: string; isSuperadmin: boolean }) {
   const [state, formAction, isPending] = useActionState(deleteUserAction, null);
 
-  if (!isSuperadmin) return null; // Seul le superadmin peut supprimer
+  if (!isSuperadmin) return null;
 
   return (
-    <form action={formAction}>
+    <form action={formAction} className="inline">
       <input type="hidden" name="userId" value={userId} />
-      <SubmitButton variant="destructive" size="sm" disabled={isPending}>
-        {isPending ? "Suppression..." : "Supprimer"}
+      <SubmitButton variant="destructive" size="sm" className="h-8 px-3 text-xs">
+        {isPending ? "..." : "Supprimer"}
       </SubmitButton>
-      {state?.error && <p className="text-xs text-red-500 mt-1">{state.error}</p>}
+      {state?.error && <p className="text-xs text-red-500 mt-1 absolute">{state.error}</p>}
     </form>
   );
 }
@@ -41,41 +38,36 @@ export function UsersManager({ users, currentAgencyId, isSuperadmin }: {
   const [state, formAction, isPending] = useActionState(inviteUserAction, null);
   const [selectedRole, setSelectedRole] = useState<"admin" | "agent">("agent");
 
-  // Filtrer pour n'afficher que les utilisateurs de l'agence actuelle (ou tous si superadmin)
   const displayedUsers = isSuperadmin 
     ? users 
-    : users.filter(u => u.id !== "superadmin-global"); // Ajuste selon ta logique de filtrage
+    : users.filter(u => u.role !== "superadmin");
 
   return (
     <div className="space-y-6">
-      {/* Titre supprimé ici pour éviter le doublon avec la page parente */}
-      
-      {/* Formulaire d'invitation */}
-      <form action={formAction} className="flex flex-col sm:flex-row gap-3 items-end sm:items-center bg-muted/30 p-4 rounded-lg border">
+      <form action={formAction} className="flex flex-col sm:flex-row gap-3 items-end sm:items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
         <div className="flex-1 w-full">
-          <label className="text-sm font-medium mb-1 block">Email du nouveau membre</label>
-          <Input 
+          <label className="text-sm font-medium mb-1 block text-slate-700">Email du nouveau membre</label>
+          <input 
             name="email" 
             type="email" 
             placeholder="prenom.nom@exemple.com" 
             required 
-            className="w-full"
+            className="flex h-9 w-full rounded-md border border-slate-300 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
         <div className="w-full sm:w-48">
-          <label className="text-sm font-medium mb-1 block">Rôle</label>
-          <Select value={selectedRole} onValueChange={(v: "admin" | "agent") => setSelectedRole(v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Sélectionner un rôle" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">Admin (Chef d'agence)</SelectItem>
-              <SelectItem value="agent">Agent (Téléprospecteur)</SelectItem>
-            </SelectContent>
-          </Select>
+          <label className="text-sm font-medium mb-1 block text-slate-700">Rôle</label>
+          <select 
+            name="role"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value as "admin" | "agent")}
+            className="flex h-9 w-full items-center justify-between rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="admin">Admin (Chef d'agence)</option>
+            <option value="agent">Agent (Téléprospecteur)</option>
+          </select>
         </div>
         <input type="hidden" name="agencyId" value={currentAgencyId} />
-        <input type="hidden" name="role" value={selectedRole} />
         
         <SubmitButton className="w-full sm:w-auto mt-4 sm:mt-0">
           Inviter
@@ -93,28 +85,29 @@ export function UsersManager({ users, currentAgencyId, isSuperadmin }: {
         </div>
       )}
 
-      {/* Liste des utilisateurs */}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-hidden border-slate-200">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50">
+          <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left p-3 font-medium">Nom</th>
-              <th className="text-left p-3 font-medium">Email</th>
-              <th className="text-left p-3 font-medium">Rôle</th>
-              <th className="text-right p-3 font-medium">Actions</th>
+              <th className="text-left p-3 font-medium text-slate-700">Nom</th>
+              <th className="text-left p-3 font-medium text-slate-700">Email</th>
+              <th className="text-left p-3 font-medium text-slate-700">Rôle</th>
+              <th className="text-right p-3 font-medium text-slate-700">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-slate-200">
             {displayedUsers.map((user) => (
-              <tr key={user.id} className="hover:bg-muted/30 transition-colors">
-                <td className="p-3">
+              <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                <td className="p-3 font-medium text-slate-900">
                   {user.first_name} {user.last_name}
                 </td>
-                <td className="p-3 text-muted-foreground">{user.email}</td>
+                <td className="p-3 text-slate-600">{user.email}</td>
                 <td className="p-3">
-                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    user.role === "admin" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-800"
+                  }`}>
                     {user.role === "admin" ? "Admin" : "Agent"}
-                  </Badge>
+                  </span>
                 </td>
                 <td className="p-3 text-right">
                   <DeleteUserForm userId={user.id} isSuperadmin={isSuperadmin} />
@@ -123,7 +116,7 @@ export function UsersManager({ users, currentAgencyId, isSuperadmin }: {
             ))}
             {displayedUsers.length === 0 && (
               <tr>
-                <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                <td colSpan={4} className="p-6 text-center text-slate-500">
                   Aucun utilisateur dans cette agence.
                 </td>
               </tr>
