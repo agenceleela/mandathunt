@@ -1,69 +1,71 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { inviteUser, updateUserRole, removeUser } from '@/lib/admin/actions';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useState } from 'react'
+import { inviteUser, updateUserRole, removeUser } from '@/lib/admin/actions'
 
-interface User {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: 'superadmin' | 'admin' | 'agent';
+export type UserRow = {
+  id: string
+  email: string | null
+  first_name: string | null
+  last_name: string | null
+  role: string
 }
 
 interface UsersManagerProps {
-  agencyId: string;
-  initialUsers: User[];
-  currentUserId: string;
+  agencyId: string
+  initialUsers: UserRow[]
+  currentUserId: string
 }
 
-export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersManagerProps) {
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [role, setRole] = useState<'admin' | 'agent'>('agent');
-  const [error, setError] = useState<string | null>(null);
+export function UsersManager({
+  agencyId,
+  initialUsers,
+  currentUserId,
+}: UsersManagerProps) {
+  const [email, setEmail] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [role, setRole] = useState<'admin' | 'agent'>('agent')
+  const [error, setError] = useState<string | null>(null)
 
   const handleInvite = async () => {
-    setError(null);
-    if (!email || !firstName || !lastName) {
-      setError('Tous les champs sont obligatoires');
-      return;
+    setError(null)
+    if (!email.trim() || !firstName.trim() || !lastName.trim()) {
+      setError('Tous les champs sont obligatoires')
+      return
     }
     try {
-      await inviteUser(agencyId, email, role, firstName, lastName);
-      setEmail('');
-      setFirstName('');
-      setLastName('');
-      setRole('agent');
-    } catch (err) {
-      setError('Erreur lors de la création de l\'utilisateur');
+      await inviteUser(agencyId, email, role, firstName, lastName)
+      setEmail('')
+      setFirstName('')
+      setLastName('')
+      setRole('agent')
+    } catch {
+      setError("Erreur lors de la création de l'utilisateur")
     }
-  };
+  }
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'agent') => {
-    await updateUserRole(userId, newRole);
-  };
+    try {
+      await updateUserRole(userId, newRole)
+    } catch {
+      setError('Erreur lors du changement de rôle')
+    }
+  }
 
   const handleRemove = async (userId: string) => {
-    if (!confirm('Supprimer cet utilisateur ?')) return;
-    await removeUser(userId);
-  };
+    if (!confirm('Supprimer cet utilisateur ?')) return
+    try {
+      await removeUser(userId)
+    } catch {
+      setError('Erreur lors de la suppression')
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <h3 className="font-semibold">Utilisateurs de l'agence</h3>
+        <h3 className="font-semibold text-lg">Utilisateurs de l'agence</h3>
         <div className="space-y-2">
           {initialUsers.map((user) => (
             <div key={user.id} className="flex items-center gap-2 p-2 border rounded">
@@ -75,21 +77,25 @@ export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersMan
               </div>
               {user.id !== currentUserId && user.role !== 'superadmin' && (
                 <>
-                  <Select
+                  <select
                     value={user.role}
-                    onValueChange={(value: 'admin' | 'agent') => handleRoleChange(user.id, value)}
+                    onChange={(e) =>
+                      handleRoleChange(
+                        user.id,
+                        e.target.value as 'admin' | 'agent'
+                      )
+                    }
+                    className="px-3 py-1 border border-gray-300 rounded text-gray-900"
                   >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="agent">Agent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" variant="destructive" onClick={() => handleRemove(user.id)}>
+                    <option value="admin">Admin</option>
+                    <option value="agent">Agent</option>
+                  </select>
+                  <button
+                    onClick={() => handleRemove(user.id)}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
                     Supprimer
-                  </Button>
+                  </button>
                 </>
               )}
               {user.role === 'superadmin' && (
@@ -99,51 +105,66 @@ export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersMan
           ))}
         </div>
       </div>
-
       <div className="space-y-4 pt-4 border-t">
-        <h3 className="font-semibold">Inviter un utilisateur</h3>
+        <h3 className="font-semibold text-lg">Inviter un utilisateur</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="firstName">Prénom</Label>
-            <Input
+            <label htmlFor="firstName" className="block text-sm font-medium mb-1">
+              Prénom
+            </label>
+            <input
               id="firstName"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
             />
           </div>
           <div>
-            <Label htmlFor="lastName">Nom</Label>
-            <Input
+            <label htmlFor="lastName" className="block text-sm font-medium mb-1">
+              Nom
+            </label>
+            <input
               id="lastName"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
             />
           </div>
         </div>
         <div>
-          <Label htmlFor="email">Email</Label>
-          <Input
+          <label htmlFor="email" className="block text-sm font-medium mb-1">
+            Email
+          </label>
+          <input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
           />
         </div>
         <div>
-          <Label htmlFor="role">Rôle</Label>
-          <Select value={role} onValueChange={(value: 'admin' | 'agent') => setRole(value)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="agent">Agent</SelectItem>
-            </SelectContent>
-          </Select>
+          <label htmlFor="role" className="block text-sm font-medium mb-1">
+            Rôle
+          </label>
+          <select
+            id="role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'admin' | 'agent')}
+            className="w-full px-3 py-2 border border-gray-300 rounded text-gray-900"
+          >
+            <option value="admin">Admin</option>
+            <option value="agent">Agent</option>
+          </select>
         </div>
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        <Button onClick={handleInvite}>Inviter</Button>
+        <button
+          onClick={handleInvite}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Inviter
+        </button>
       </div>
     </div>
-  );
+  )
 }
