@@ -24,7 +24,6 @@ export async function updateZone(
 
   if (!profile) throw new Error('Profil introuvable');
 
-  // Vérifier les permissions
   const isSuperadmin = profile.role === 'superadmin';
   const isAdminWithAuthority =
     profile.role === 'admin' && profile.agency_id === agencyId;
@@ -87,7 +86,7 @@ export async function updateCriteria(
   revalidatePath('/reglages');
 }
 
-export async function addColumn(
+export async function createColumn(
   agencyId: string,
   name: string,
   color: string
@@ -115,7 +114,6 @@ export async function addColumn(
     throw new Error('Permission refusée');
   }
 
-  // Récupérer la position max
   const { data: maxPos } = await supabase
     .from('columns')
     .select('position')
@@ -132,6 +130,47 @@ export async function addColumn(
     color,
     position,
   });
+
+  if (error) throw error;
+
+  revalidatePath('/reglages');
+  revalidatePath('/');
+}
+
+export async function updateColumn(
+  agencyId: string,
+  columnId: string,
+  name: string,
+  color: string
+): Promise<void> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Non authentifié');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, agency_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) throw new Error('Profil introuvable');
+
+  const isSuperadmin = profile.role === 'superadmin';
+  const isAdminWithAuthority =
+    profile.role === 'admin' && profile.agency_id === agencyId;
+
+  if (!isSuperadmin && !isAdminWithAuthority) {
+    throw new Error('Permission refusée');
+  }
+
+  const { error } = await supabase
+    .from('columns')
+    .update({ name, color })
+    .eq('id', columnId)
+    .eq('agency_id', agencyId);
 
   if (error) throw error;
 
@@ -178,6 +217,65 @@ export async function deleteColumn(
   revalidatePath('/');
 }
 
+export async function reorderColumns(
+  agencyId: string,
+  columnIds: string[]
+): Promise<void> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Non authentifié');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, agency_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) throw new Error('Profil introuvable');
+
+  const isSuperadmin = profile.role === 'superadmin';
+  const isAdminWithAuthority =
+    profile.role === 'admin' && profile.agency_id === agencyId;
+
+  if (!isSuperadmin && !isAdminWithAuthority) {
+    throw new Error('Permission refusée');
+  }
+
+  const updates = columnIds.map((id, index) =>
+    supabase
+      .from('columns')
+      .update({ position: index })
+      .eq('id', id)
+      .eq('agency_id', agencyId)
+  );
+
+  await Promise.all(updates);
+
+  revalidatePath('/reglages');
+  revalidatePath('/');
+}
+
+export async function addColumn(
+  agencyId: string,
+  name: string,
+  color: string
+): Promise<void> {
+  return createColumn(agencyId, name, color);
+}
+
+export async function inviteUser(
+  agencyId: string,
+  email: string,
+  role: 'admin' | 'agent',
+  firstName: string,
+  lastName: string
+): Promise<void> {
+  return inviteUserByEmail(agencyId, email, role, firstName, lastName);
+}
+
 export async function inviteUserByEmail(
   agencyId: string,
   email: string,
@@ -208,12 +306,10 @@ export async function inviteUserByEmail(
     throw new Error('Permission refusée');
   }
 
-  // Admin ne peut inviter que des agents
   if (profile.role === 'admin' && role === 'admin') {
     throw new Error('Permission refusée : un admin ne peut pas créer d\'autres admins');
   }
 
-  // Inviter l'utilisateur via Supabase Auth
   const { error: authError } = await supabase.auth.admin.inviteUserByEmail(
     email,
     {
@@ -223,14 +319,12 @@ export async function inviteUserByEmail(
 
   if (authError) throw authError;
 
-  // Récupérer l'utilisateur créé
   const { data: users, error: listError } = await supabase.auth.admin.listUsers();
   if (listError) throw listError;
 
   const invitedUser = users.users.find((u) => u.email === email);
   if (!invitedUser) throw new Error('Utilisateur invité introuvable');
 
-  // Créer le profil
   const { error: profileError } = await supabase.from('profiles').insert({
     id: invitedUser.id,
     agency_id: agencyId,
@@ -241,6 +335,49 @@ export async function inviteUserByEmail(
   });
 
   if (profileError) throw profileError;
+
+  revalidatePath('/reglages');
+}
+
+export async function updateUserRole(
+  agencyId: string,
+  userId: string,
+  role: 'admin' | 'agent'
+): Promise<void> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Non authentifié');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, agency_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) throw new Error('Profil introuvable');
+
+  const isSuperadmin = profile.role === 'superadmin';
+  const isAdminWithAuthority =
+    profile.role === 'admin' && profile.agency_id === agencyId;
+
+  if (!isSuperadmin && !isAdminWithAuthority) {
+    throw new Error('Permission refusée');
+  }
+
+  if (profile.role === 'admin' && role === 'admin') {
+    throw new Error('Permission refusée : un admin ne peut pas créer d\'autres admins');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ role })
+    .eq('id', userId)
+    .eq('agency_id', agencyId);
+
+  if (error) throw error;
 
   revalidatePath('/reglages');
 }
@@ -272,7 +409,6 @@ export async function removeUser(
     throw new Error('Permission refusée');
   }
 
-  // Supprimer le profil
   const { error: profileError } = await supabase
     .from('profiles')
     .delete()
@@ -281,7 +417,6 @@ export async function removeUser(
 
   if (profileError) throw profileError;
 
-  // Supprimer l'utilisateur Auth (superadmin uniquement)
   if (isSuperadmin) {
     const { error: authError } = await supabase.auth.admin.deleteUser(userId);
     if (authError) throw authError;
