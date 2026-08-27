@@ -45,10 +45,10 @@ export async function updateZone(
 export async function updateCriteria(
   agencyId: string,
   criteria: {
-    price_min?: number;
-    price_max?: number;
-    year_min?: number;
-    mileage_max?: number;
+    price_min?: number | null;
+    price_max?: number | null;
+    year_min?: number | null;
+    mileage_max?: number | null;
     has_phone?: boolean;
     sources?: string[];
   }
@@ -258,25 +258,7 @@ export async function reorderColumns(
   revalidatePath('/');
 }
 
-export async function addColumn(
-  agencyId: string,
-  name: string,
-  color: string
-): Promise<void> {
-  return createColumn(agencyId, name, color);
-}
-
 export async function inviteUser(
-  agencyId: string,
-  email: string,
-  role: 'admin' | 'agent',
-  firstName: string,
-  lastName: string
-): Promise<void> {
-  return inviteUserByEmail(agencyId, email, role, firstName, lastName);
-}
-
-export async function inviteUserByEmail(
   agencyId: string,
   email: string,
   role: 'admin' | 'agent',
@@ -307,7 +289,9 @@ export async function inviteUserByEmail(
   }
 
   if (profile.role === 'admin' && role === 'admin') {
-    throw new Error('Permission refusée : un admin ne peut pas créer d\'autres admins');
+    throw new Error(
+      "Permission refusée : un admin ne peut pas créer d'autres admins"
+    );
   }
 
   const { error: authError } = await supabase.auth.admin.inviteUserByEmail(
@@ -319,7 +303,8 @@ export async function inviteUserByEmail(
 
   if (authError) throw authError;
 
-  const { data: users, error: listError } = await supabase.auth.admin.listUsers();
+  const { data: users, error: listError } =
+    await supabase.auth.admin.listUsers();
   if (listError) throw listError;
 
   const invitedUser = users.users.find((u) => u.email === email);
@@ -337,6 +322,16 @@ export async function inviteUserByEmail(
   if (profileError) throw profileError;
 
   revalidatePath('/reglages');
+}
+
+export async function inviteUserByEmail(
+  agencyId: string,
+  email: string,
+  role: 'admin' | 'agent',
+  firstName: string,
+  lastName: string
+): Promise<void> {
+  return inviteUser(agencyId, email, role, firstName, lastName);
 }
 
 export async function updateUserRole(
@@ -368,7 +363,9 @@ export async function updateUserRole(
   }
 
   if (profile.role === 'admin' && role === 'admin') {
-    throw new Error('Permission refusée : un admin ne peut pas créer d\'autres admins');
+    throw new Error(
+      "Permission refusée : un admin ne peut pas créer d'autres admins"
+    );
   }
 
   const { error } = await supabase
@@ -443,7 +440,9 @@ export async function setAuthorityAdmin(
     .single();
 
   if (!profile || profile.role !== 'superadmin') {
-    throw new Error('Permission refusée : seul le superadmin peut modifier l\'autorité');
+    throw new Error(
+      "Permission refusée : seul le superadmin peut modifier l'autorité"
+    );
   }
 
   const { error } = await supabase
