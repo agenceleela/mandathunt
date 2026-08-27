@@ -1,215 +1,136 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { inviteUser, updateUserRole, removeUser } from '@/lib/admin/actions'
+import { useState } from "react";
+import { useActionState } from "react-dom";
+import { deleteUserAction, inviteUserAction } from "@/lib/admin/actions";
+import { SubmitButton } from "@/components/SubmitButton";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export type UserRow = {
-  id: string
-  email: string | null
-  first_name: string | null
-  last_name: string | null
-  role: string
+type Profile = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  role: "superadmin" | "admin" | "agent";
+};
+
+// Composant isolé pour éviter l'erreur React #441 (Hooks dans une boucle)
+function DeleteUserForm({ userId, isSuperadmin }: { userId: string; isSuperadmin: boolean }) {
+  const [state, formAction, isPending] = useActionState(deleteUserAction, null);
+
+  if (!isSuperadmin) return null; // Seul le superadmin peut supprimer
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="userId" value={userId} />
+      <SubmitButton variant="destructive" size="sm" disabled={isPending}>
+        {isPending ? "Suppression..." : "Supprimer"}
+      </SubmitButton>
+      {state?.error && <p className="text-xs text-red-500 mt-1">{state.error}</p>}
+    </form>
+  );
 }
 
-interface UsersManagerProps {
-  agencyId: string
-  initialUsers: UserRow[]
-  currentUserId: string
-  canCreateAdmins: boolean
-}
+export function UsersManager({ users, currentAgencyId, isSuperadmin }: { 
+  users: Profile[]; 
+  currentAgencyId: string;
+  isSuperadmin: boolean;
+}) {
+  const [state, formAction, isPending] = useActionState(inviteUserAction, null);
+  const [selectedRole, setSelectedRole] = useState<"admin" | "agent">("agent");
 
-export function UsersManager({
-  agencyId,
-  initialUsers,
-  currentUserId,
-  canCreateAdmins,
-}: UsersManagerProps) {
-  const [email, setEmail] = useState('')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [role, setRole] = useState<'admin' | 'agent'>('agent')
-  const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
-
-  const handleInvite = async () => {
-    setError(null)
-    setInfo(null)
-    if (!email.trim() || !firstName.trim() || !lastName.trim()) {
-      setError('Tous les champs sont obligatoires')
-      return
-    }
-    try {
-      await inviteUser(agencyId, email, role, firstName, lastName)
-      setEmail('')
-      setFirstName('')
-      setLastName('')
-      setRole('agent')
-      setInfo('Invitation envoyée par email.')
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erreur lors de l'invitation"
-      )
-    }
-  }
-
-  const handleRoleChange = async (
-    userId: string,
-    newRole: 'admin' | 'agent'
-  ) => {
-    setError(null)
-    try {
-      await updateUserRole(agencyId, userId, newRole)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur')
-    }
-  }
-
-  const handleRemove = async (userId: string) => {
-    if (!confirm('Supprimer cet utilisateur ?')) return
-    setError(null)
-    try {
-      await removeUser(agencyId, userId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur')
-    }
-  }
+  // Filtrer pour n'afficher que les utilisateurs de l'agence actuelle (ou tous si superadmin)
+  const displayedUsers = isSuperadmin 
+    ? users 
+    : users.filter(u => u.id !== "superadmin-global"); // Ajuste selon ta logique de filtrage
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <h3 className="font-semibold text-lg text-gray-900">
-          Utilisateurs de l&#39;agence
-        </h3>
-        <div className="space-y-2">
-          {initialUsers.map((user) => (
-            <div
-              key={user.id}
-              className="flex items-center gap-2 p-2 border border-gray-300 rounded bg-white"
-            >
-              <div className="flex-1">
-                <div className="font-medium text-gray-900">
-                  {user.first_name} {user.last_name}
-                </div>
-                <div className="text-sm text-gray-600">{user.email}</div>
-              </div>
-              {user.role === 'superadmin' && (
-                <span className="text-sm text-gray-500">Superadmin</span>
-              )}
-              {user.id !== currentUserId && user.role !== 'superadmin' && (
-                <>
-                  {canCreateAdmins ? (
-                    <select
-                      value={user.role}
-                      onChange={(e) =>
-                        handleRoleChange(
-                          user.id,
-                          e.target.value as 'admin' | 'agent'
-                        )
-                      }
-                      className="px-3 py-1 border border-gray-300 rounded text-gray-900 bg-white"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="agent">Agent</option>
-                    </select>
-                  ) : (
-                    <span className="text-sm text-gray-600">
-                      {user.role === 'admin' ? 'Admin' : 'Agent'}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => handleRemove(user.id)}
-                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Supprimer
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-4 pt-4 border-t border-gray-200">
-        <h3 className="font-semibold text-lg text-gray-900">
-          Inviter un utilisateur
-        </h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="firstName"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Prénom
-            </label>
-            <input
-              id="firstName"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-gray-900"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="lastName"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Nom
-            </label>
-            <input
-              id="lastName"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-gray-900"
-            />
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-gray-900"
+      {/* Titre supprimé ici pour éviter le doublon avec la page parente */}
+      
+      {/* Formulaire d'invitation */}
+      <form action={formAction} className="flex flex-col sm:flex-row gap-3 items-end sm:items-center bg-muted/30 p-4 rounded-lg border">
+        <div className="flex-1 w-full">
+          <label className="text-sm font-medium mb-1 block">Email du nouveau membre</label>
+          <Input 
+            name="email" 
+            type="email" 
+            placeholder="prenom.nom@exemple.com" 
+            required 
+            className="w-full"
           />
         </div>
-        <div>
-          <label
-            htmlFor="role"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Rôle
-          </label>
-          {canCreateAdmins ? (
-            <select
-              id="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as 'admin' | 'agent')}
-              className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-gray-900"
-            >
-              <option value="agent">Agent</option>
-              <option value="admin">Admin</option>
-            </select>
-          ) : (
-            <p className="text-sm text-gray-600">
-              Agent (seul un superadmin peut créer des admins)
-            </p>
-          )}
+        <div className="w-full sm:w-48">
+          <label className="text-sm font-medium mb-1 block">Rôle</label>
+          <Select value={selectedRole} onValueChange={(v: "admin" | "agent") => setSelectedRole(v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Sélectionner un rôle" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">Admin (Chef d'agence)</SelectItem>
+              <SelectItem value="agent">Agent (Téléprospecteur)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {info && <p className="text-green-600 text-sm">{info}</p>}
-        <button
-          onClick={handleInvite}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
+        <input type="hidden" name="agencyId" value={currentAgencyId} />
+        <input type="hidden" name="role" value={selectedRole} />
+        
+        <SubmitButton className="w-full sm:w-auto mt-4 sm:mt-0">
           Inviter
-        </button>
+        </SubmitButton>
+      </form>
+
+      {state?.error && (
+        <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200">
+          {state.error}
+        </div>
+      )}
+      {state?.success && (
+        <div className="p-3 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
+          {state.success}
+        </div>
+      )}
+
+      {/* Liste des utilisateurs */}
+      <div className="border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left p-3 font-medium">Nom</th>
+              <th className="text-left p-3 font-medium">Email</th>
+              <th className="text-left p-3 font-medium">Rôle</th>
+              <th className="text-right p-3 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {displayedUsers.map((user) => (
+              <tr key={user.id} className="hover:bg-muted/30 transition-colors">
+                <td className="p-3">
+                  {user.first_name} {user.last_name}
+                </td>
+                <td className="p-3 text-muted-foreground">{user.email}</td>
+                <td className="p-3">
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                    {user.role === "admin" ? "Admin" : "Agent"}
+                  </Badge>
+                </td>
+                <td className="p-3 text-right">
+                  <DeleteUserForm userId={user.id} isSuperadmin={isSuperadmin} />
+                </td>
+              </tr>
+            ))}
+            {displayedUsers.length === 0 && (
+              <tr>
+                <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                  Aucun utilisateur dans cette agence.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
-  )
+  );
 }
