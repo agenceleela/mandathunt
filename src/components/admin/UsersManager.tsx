@@ -47,7 +47,7 @@ export function UsersManager({
       setInfo('Invitation envoyée par email.')
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Erreur lors de l\'invitation'
+        err instanceof Error ? err.message : "Erreur lors de l'invitation"
       )
     }
   }
@@ -58,7 +58,7 @@ export function UsersManager({
   ) => {
     setError(null)
     try {
-      await updateUserRole(userId, newRole)
+      await updateUserRole(agencyId, userId, newRole)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     }
@@ -68,7 +68,7 @@ export function UsersManager({
     if (!confirm('Supprimer cet utilisateur ?')) return
     setError(null)
     try {
-      await removeUser(userId)
+      await removeUser(agencyId, userId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     }
@@ -78,7 +78,7 @@ export function UsersManager({
     <div className="space-y-6">
       <div className="space-y-4">
         <h3 className="font-semibold text-lg text-gray-900">
-          Utilisateurs de l'agence
+          Utilisateurs de l&#39;agence
         </h3>
         <div className="space-y-2">
           {initialUsers.map((user) => (
