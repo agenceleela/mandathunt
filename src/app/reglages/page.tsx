@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { AgencySelector } from '@/components/admin/AgencySelector';
-import { AuthoritySelect } from '@/components/AuthoritySelect';
+import { AuthoritySelect } from '@/components/admin/AuthoritySelect';
 import { ZoneForm } from '@/components/admin/ZoneForm';
 import { CriteriaForm } from '@/components/admin/CriteriaForm';
 import { ColumnsManager } from '@/components/admin/ColumnsManager';
@@ -28,12 +28,10 @@ export default async function ReglagesPage() {
     redirect('/login');
   }
 
-  // Vérifier les permissions
   if (profile.role !== 'admin' && profile.role !== 'superadmin') {
     redirect('/');
   }
 
-  // Récupérer l'agence courante
   const { data: agency } = await supabase
     .from('agencies')
     .select('*')
@@ -44,8 +42,8 @@ export default async function ReglagesPage() {
     redirect('/');
   }
 
-  // Pour le superadmin : récupérer la liste des agences
-  let agencies = [];
+  // Pour le superadmin : liste des agences
+  let agencies: { id: string; name: string }[] = [];
   if (profile.role === 'superadmin') {
     const { data } = await supabase
       .from('agencies')
@@ -53,6 +51,41 @@ export default async function ReglagesPage() {
       .order('name');
     agencies = data || [];
   }
+
+  // Admins de l'agence (pour AuthoritySelect)
+  const { data: agencyAdmins } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, email')
+    .eq('agency_id', agency.id)
+    .eq('role', 'admin');
+
+  // Colonnes de l'agence
+  const { data: columns } = await supabase
+    .from('columns')
+    .select('id, name, color, position')
+    .eq('agency_id', agency.id)
+    .order('position');
+
+  // Utilisateurs de l'agence
+  const { data: users } = await supabase
+    .from('profiles')
+    .select('id, email, first_name, last_name, role')
+    .eq('agency_id', agency.id)
+    .order('role');
+
+  // Critères par défaut
+  const defaultCriteria = {
+    price_min: null,
+    price_max: null,
+    year_min: null,
+    mileage_max: null,
+    has_phone: false,
+    sources: ['lbc', 'lacentrale'],
+  };
+
+  const criteria = agency.criteria
+    ? { ...defaultCriteria, ...agency.criteria }
+    : defaultCriteria;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -69,21 +102,32 @@ export default async function ReglagesPage() {
 
         {/* Sélecteur d'agence (superadmin uniquement) */}
         {profile.role === 'superadmin' && agencies.length > 0 && (
-          <AgencySelector agencies={agencies} currentAgencyId={agency.id} />
+          <AgencySelector agencies={agencies} currentId={agency.id} />
         )}
 
-        {/* Autorité */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Autorité
-          </h2>
-          <AuthoritySelect agencyId={agency.id} />
-        </div>
+        {/* Autorité (superadmin uniquement) */}
+        {profile.role === 'superadmin' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Autorité
+            </h2>
+            <AuthoritySelect
+              agencyId={agency.id}
+              currentAdminId={agency.authority_admin_id ?? null}
+              agencyAdmins={agencyAdmins || []}
+            />
+          </div>
+        )}
 
         {/* Zone */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Zone</h2>
-          <ZoneForm agency={agency} />
+          <ZoneForm
+            agencyId={agency.id}
+            initialCity={agency.city || ''}
+            initialPostalCode={agency.postal_code || ''}
+            initialRadiusKm={agency.radius_km ?? 20}
+          />
         </div>
 
         {/* Critères */}
@@ -91,7 +135,7 @@ export default async function ReglagesPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Critères initiaux
           </h2>
-          <CriteriaForm agency={agency} />
+          <CriteriaForm agencyId={agency.id} initialCriteria={criteria} />
         </div>
 
         {/* Colonnes */}
@@ -99,15 +143,23 @@ export default async function ReglagesPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Colonnes du board
           </h2>
-          <ColumnsManager agencyId={agency.id} />
+          <ColumnsManager
+            agencyId={agency.id}
+            initialColumns={columns || []}
+          />
         </div>
 
         {/* Utilisateurs */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Utilisateurs de l'agence
+            Utilisateurs de l&#39;agence
           </h2>
-          <UsersManager agencyId={agency.id} />
+          <UsersManager
+            agencyId={agency.id}
+            initialUsers={users || []}
+            currentUserId={user.id}
+            canCreateAdmins={profile.role === 'superadmin'}
+          />
         </div>
       </div>
     </div>
