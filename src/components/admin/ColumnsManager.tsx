@@ -1,11 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useFormState } from 'react-dom';
 import { createColumn, updateColumn, deleteColumn, reorderColumns } from '@/lib/admin/actions';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 interface Column {
   id: string;
@@ -79,45 +75,50 @@ export function ColumnsManager({ agencyId, initialColumns }: ColumnsManagerProps
           >
             {editingId === column.id ? (
               <>
-                <Input
+                <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="flex-1"
+                  className="flex-1 px-3 py-1 border border-gray-300 rounded"
                 />
-                <Input
+                <input
                   type="color"
                   value={editColor}
                   onChange={(e) => setEditColor(e.target.value)}
-                  className="w-20"
+                  className="w-20 h-9 border border-gray-300 rounded"
                 />
-                <Button size="sm" onClick={() => handleUpdate(column.id)}>
+                <button
+                  onClick={() => handleUpdate(column.id)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
                   Valider
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                </button>
+                <button
+                  onClick={() => setEditingId(null)}
+                  className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100"
+                >
                   Annuler
-                </Button>
+                </button>
               </>
             ) : (
               <>
-                <div
-                  className="w-4 h-4 rounded"
-                  style={{ backgroundColor: column.color }}
-                />
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: column.color }} />
                 <span className="flex-1">{column.name}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
+                <button
                   onClick={() => {
                     setEditingId(column.id);
                     setEditName(column.name);
                     setEditColor(column.color);
                   }}
+                  className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100"
                 >
                   Modifier
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDelete(column.id)}>
+                </button>
+                <button
+                  onClick={() => handleDelete(column.id)}
+                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                >
                   Supprimer
-                </Button>
+                </button>
               </>
             )}
           </div>
@@ -125,21 +126,26 @@ export function ColumnsManager({ agencyId, initialColumns }: ColumnsManagerProps
       </div>
 
       <div className="space-y-2 pt-4 border-t">
-        <Label>Nouvelle colonne</Label>
+        <label className="block text-sm font-medium">Nouvelle colonne</label>
         <div className="flex gap-2">
-          <Input
+          <input
             placeholder="Nom de la colonne"
             value={newColumnName}
             onChange={(e) => setNewColumnName(e.target.value)}
-            className="flex-1"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded"
           />
-          <Input
+          <input
             type="color"
             value={newColumnColor}
             onChange={(e) => setNewColumnColor(e.target.value)}
-            className="w-20"
+            className="w-20 h-9 border border-gray-300 rounded"
           />
-          <Button onClick={handleCreate}>Ajouter</Button>
+          <button
+            onClick={handleCreate}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Ajouter
+          </button>
         </div>
       </div>
     </div>
