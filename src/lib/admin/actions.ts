@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { traduireErreur } from '@/lib/auth/erreurs'
 
 function serviceClient() {
   return createServiceClient(
@@ -30,13 +31,46 @@ async function requireAdmin(agencyId: string) {
   if (role === 'admin' && profile.agency_id === agencyId) {
     const { data: agency } = await supabase
       .from('agencies')
-      .select('self_managed')
+      .select('authority_admin_id')
       .eq('id', agencyId)
       .single()
-    if (agency?.self_managed)
+    if (agency && agency.authority_admin_id === user.id)
       return { userId: user.id, role: 'admin' as const }
   }
   redirect('/')
+}
+
+export async function setAgencyAuthority(
+  agencyId: string,
+  adminId: string | null
+): Promise<void> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (!profile || profile.role !== 'superadmin') redirect('/')
+  const admin = serviceClient()
+  const { error } = await admin
+    .from('agencies')
+    .update({ authority_admin_id: adminId })
+    .eq('id', agencyId)
+  if (error) throw error
+  revalidatePath('/reglages')
+}
+
+// Compatibilité temporaire avec l'ancien AuthorityToggle (supprimé à la
+// fin de cette série de commits)
+export async function updateAgencyAuthority(
+  _agencyId: string,
+  _selfManaged: boolean
+): Promise<void> {
+  revalidatePath('/reglages')
 }
 
 export async function updateZone(
@@ -180,7 +214,7 @@ export async function inviteUser(
 ): Promise<void> {
   const caller = await requireAdmin(agencyId)
   const cleanEmail = email.trim().toLowerCase()
-  if (!cleanEmail) throw new Error('Email invalide')
+  if (!cleanEmail) throw new Error('Email invalide.')
   // un admin ne peut inviter que des agents
   const targetRole: 'admin' | 'agent' =
     caller.role === 'admin' ? 'agent' : role
@@ -190,20 +224,19 @@ export async function inviteUser(
     .select('id')
     .eq('email', cleanEmail)
     .maybeSingle()
-  if (existing) throw new Error('Un utilisateur existe déjà avec cet email')
+  if (existing) throw new Error('Un utilisateur existe déjà avec cet email.')
   const { data, error: authError } = await admin.auth.admin.inviteUserByEmail(
     cleanEmail,
     {
-      redirectTo: 'https://mandathunt.vercel.app/login',
+      redirectTo: 'https://mandathunt.vercel.app/mot-de-passe',
       data: {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
       },
     }
   )
-  if (authError) throw authError
-  if (!data.user) throw new Error('Invitation échouée')
-  // Le profil est lié au VRAI id Auth retourné par l'invitation
+  if (authError) throw new Error(traduireErreur(authError.message))
+  if (!data.user) throw new Error('Invitation échouée.')
   const { error: profileError } = await admin.from('profiles').insert({
     id: data.user.id,
     agency_id: agencyId,
@@ -212,7 +245,7 @@ export async function inviteUser(
     first_name: firstName.trim(),
     last_name: lastName.trim(),
   })
-  if (profileError) throw profileError
+  if (profileError) throw new Error('Erreur lors de la création du profil.')
   revalidatePath('/reglages')
 }
 
@@ -226,19 +259,19 @@ export async function updateUserRole(
     .select('agency_id, role')
     .eq('id', userId)
     .single()
-  if (!target) throw new Error('Utilisateur introuvable')
+  if (!target) throw new Error('Utilisateur introuvable.')
   const caller = await requireAdmin(target.agency_id as string)
   if (userId === caller.userId)
-    throw new Error('Vous ne pouvez pas modifier votre propre rôle')
+    throw new Error('Vous ne pouvez pas modifier votre propre rôle.')
   if (caller.role === 'admin' && target.role !== 'agent')
-    throw new Error('Action non autorisée')
+    throw new Error('Action non autorisée.')
   const newRole: 'admin' | 'agent' =
     caller.role === 'admin' ? 'agent' : role
   const { error } = await admin
     .from('profiles')
     .update({ role: newRole })
     .eq('id', userId)
-  if (error) throw error
+  if (error) throw new Error('Erreur lors du changement de rôle.')
   revalidatePath('/reglages')
 }
 
@@ -249,39 +282,15 @@ export async function removeUser(userId: string): Promise<void> {
     .select('agency_id, role')
     .eq('id', userId)
     .single()
-  if (!target) throw new Error('Utilisateur introuvable')
+  if (!target) throw new Error('Utilisateur introuvable.')
   const caller = await requireAdmin(target.agency_id as string)
   if (userId === caller.userId)
-    throw new Error('Vous ne pouvez pas supprimer votre propre compte')
+    throw new Error('Vous ne pouvez pas supprimer votre propre compte.')
   if (caller.role === 'admin' && target.role !== 'agent')
-    throw new Error('Action non autorisée')
+    throw new Error('Action non autorisée.')
   const { error } = await admin.from('profiles').delete().eq('id', userId)
-  if (error) throw error
+  if (error) throw new Error('Erreur lors de la suppression du profil.')
   const { error: authError } = await admin.auth.admin.deleteUser(userId)
-  if (authError) throw authError
-  revalidatePath('/reglages')
-}
-
-export async function updateAgencyAuthority(
-  agencyId: string,
-  selfManaged: boolean
-): Promise<void> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-  if (!profile || profile.role !== 'superadmin') redirect('/')
-  const admin = serviceClient()
-  const { error } = await admin
-    .from('agencies')
-    .update({ self_managed: selfManaged })
-    .eq('id', agencyId)
-  if (error) throw error
+  if (authError) throw new Error('Erreur lors de la suppression du compte.')
   revalidatePath('/reglages')
 }
