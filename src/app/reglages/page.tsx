@@ -5,7 +5,7 @@ import { CriteriaForm, type Criteria } from '@/components/admin/CriteriaForm'
 import { ColumnsManager, type ColumnRow } from '@/components/admin/ColumnsManager'
 import { UsersManager, type UserRow } from '@/components/admin/UsersManager'
 import { AgencySelector } from '@/components/admin/AgencySelector'
-import { AuthorityToggle } from '@/components/admin/AuthorityToggle'
+import { AuthoritySelect } from '@/components/admin/AuthoritySelect'
 
 export default async function ReglagesPage({
   searchParams,
@@ -29,14 +29,13 @@ export default async function ReglagesPage({
   if (role !== 'admin' && role !== 'superadmin') redirect('/')
   const isSuper = role === 'superadmin'
 
-  // Choix de l'agence : sélecteur pour superadmin, imposée pour admin
-  let agencies: { id: string; name: string; self_managed: boolean }[] = []
+  let agencies: { id: string; name: string }[] = []
   if (isSuper) {
     const { data: all } = await supabase
       .from('agencies')
-      .select('id, name, self_managed')
+      .select('id, name')
       .order('name')
-    agencies = (all as { id: string; name: string; self_managed: boolean }[] | null) ?? []
+    agencies = (all as { id: string; name: string }[] | null) ?? []
   }
   const agencyId = isSuper
     ? (params.agence ?? agencies[0]?.id ?? (profile.agency_id as string))
@@ -50,9 +49,11 @@ export default async function ReglagesPage({
     .single()
   if (!agency) redirect('/')
 
-  // Un admin ne peut régler qu'une agence "self_managed"
-  if (!isSuper && !(agency as { self_managed?: boolean }).self_managed) {
-    redirect('/')
+  // Un admin n'accède aux réglages que s'il est l'admin désigné de la zone
+  if (!isSuper) {
+    const authority = (agency as { authority_admin_id: string | null })
+      .authority_admin_id
+    if (authority !== user.id) redirect('/')
   }
 
   const { data: columnsRaw } = await supabase
@@ -66,6 +67,7 @@ export default async function ReglagesPage({
     .select('id, email, first_name, last_name, role')
     .eq('agency_id', agencyId)
     .order('created_at', { ascending: true })
+  const users = (usersRaw as UserRow[] | null) ?? []
 
   const rawCriteria = (agency.criteria ?? null) as Partial<Criteria> | null
   const criteria: Criteria = {
@@ -85,8 +87,14 @@ export default async function ReglagesPage({
       : ['lbc', 'lacentrale'],
   }
 
-  const selfManaged =
-    (agency as { self_managed?: boolean }).self_managed !== false
+  const admins = users
+    .filter((u) => u.role === 'admin')
+    .map((u) => ({
+      id: u.id,
+      name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Admin',
+    }))
+  const currentAuthority = (agency as { authority_admin_id: string | null })
+    .authority_admin_id
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -94,7 +102,7 @@ export default async function ReglagesPage({
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Réglages</h1>
           <span className="text-sm text-gray-600 border border-gray-300 rounded px-2 py-1">
-            {isSuper ? 'Superadmin — toutes agences' : 'Admin — votre agence'}
+            {isSuper ? 'Superadmin — toutes agences' : 'Admin désigné — votre agence'}
           </span>
         </div>
 
@@ -109,10 +117,12 @@ export default async function ReglagesPage({
 
         {isSuper && (
           <section className="space-y-2 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Autorité sur cette agence
-            </h2>
-            <AuthorityToggle agencyId={agencyId} selfManaged={selfManaged} />
+            <h2 className="text-xl font-semibold text-gray-900">Autorité</h2>
+            <AuthoritySelect
+              agencyId={agencyId}
+              admins={admins}
+              current={currentAuthority}
+            />
           </section>
         )}
 
@@ -152,7 +162,7 @@ export default async function ReglagesPage({
             </h2>
             <UsersManager
               agencyId={agency.id}
-              initialUsers={(usersRaw as UserRow[] | null) ?? []}
+              initialUsers={users}
               currentUserId={user.id}
               canCreateAdmins={isSuper}
             />
