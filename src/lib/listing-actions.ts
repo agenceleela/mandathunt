@@ -86,13 +86,13 @@ export async function setRappelDate(
   revalidatePath('/')
 }
 
+// Attribution ouverte à tous les rôles de l'agence (superadmin, admin, agent)
 export async function assignListing(
   listingId: string,
   profileId: string | null
 ): Promise<void> {
   const ctx = await getCtx()
   if (!ctx) return
-  if (ctx.profile.role !== 'superadmin' && ctx.profile.role !== 'admin') return
   const listing = await getListingIfAllowed(ctx.supabase, ctx.profile, listingId)
   if (!listing) return
   await ctx.supabase
@@ -264,7 +264,8 @@ export async function getListingDetails(
       id: p.id,
       name: nameById.get(p.id) ?? 'Utilisateur',
     })),
-    canAssign: profile.role === 'superadmin' || profile.role === 'admin',
+    // Tous les rôles de l'agence peuvent attribuer (décision 2026-08-28)
+    canAssign: true,
     currentColumnName: (l.column_id as string | null)
       ? (columnNameById.get(l.column_id as string) ?? null)
       : null,
