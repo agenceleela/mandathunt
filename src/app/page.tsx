@@ -44,6 +44,7 @@ export default async function HomePage() {
 
   let agencyId = (profile.agency_id as string | null) ?? null
   let agencyName = ''
+  let authorityAdminId: string | null = null
   if (role === 'superadmin') {
     const wanted = cookieStore.get('mh_agency_id')?.value ?? null
     const { data: agencies } = await supabase
@@ -64,12 +65,21 @@ export default async function HomePage() {
     const { data: ag } = agencyId
       ? await supabase
           .from('agencies')
-          .select('id, name')
+          .select('id, name, authority_admin_id')
           .eq('id', agencyId)
           .single()
       : { data: null }
-    agencyName = (ag as { name: string } | null)?.name ?? ''
+    const agency =
+      (ag as { name: string; authority_admin_id: string | null } | null) ??
+      null
+    agencyName = agency?.name ?? ''
+    authorityAdminId = agency?.authority_admin_id ?? null
   }
+
+  // D16 : lien Réglages visible par superadmin ou admin désigné
+  const canAccessSettings =
+    role === 'superadmin' ||
+    (role === 'admin' && authorityAdminId === user.id)
 
   const { data: columnsRaw } = agencyId
     ? await supabase
@@ -164,12 +174,22 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-extrabold text-gray-900">MandatHunt</h1>
-          <p className="text-gray-600">
-            {agencyName ? `Agence : ${agencyName}` : 'Aucune agence configurée'}
-            {role === 'superadmin' ? ' · superadmin' : ''}
-          </p>
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-extrabold text-gray-900">MandatHunt</h1>
+            <p className="text-gray-600">
+              {agencyName ? `Agence : ${agencyName}` : 'Aucune agence configurée'}
+              {role === 'superadmin' ? ' · superadmin' : ''}
+            </p>
+          </div>
+          {canAccessSettings && (
+            <a
+              href="/reglages"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100"
+            >
+              Réglages
+            </a>
+          )}
         </header>
 
         <Board columns={columns} listings={listings} />
