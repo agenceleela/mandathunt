@@ -1,456 +1,199 @@
-'use server';
+"use server";
 
-import { createClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-export async function updateZone(
-  agencyId: string,
-  city: string,
-  postalCode: string,
-  radiusKm: number
-): Promise<void> {
+// Helper pour vérifier les droits d'administration d'une agence
+async function checkAgencyAdminRights(agencyId: string) {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Non authentifié");
 
   const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
+    .from("profiles")
+    .select("role, agencies(authority_admin_id)")
+    .eq("id", user.id)
     .single();
 
-  if (!profile) throw new Error('Profil introuvable');
+  if (!profile) throw new Error("Profil introuvable");
 
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
+  const isSuperadmin = profile.role === "superadmin";
+  const isAgencyAdmin = profile.role === "admin" && profile.agencies?.authority_admin_id === user.id;
 
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
+  if (!isSuperadmin && !isAgencyAdmin) {
+    throw new Error("Non autorisé à modifier les réglages de cette agence");
   }
 
-  const { error } = await supabase
-    .from('agencies')
-    .update({ city, postal_code: postalCode, radius_km: radiusKm })
-    .eq('id', agencyId);
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
+  return { user, isSuperadmin };
 }
 
-export async function updateCriteria(
-  agencyId: string,
-  criteria: {
-    price_min?: number | null;
-    price_max?: number | null;
-    year_min?: number | null;
-    mileage_max?: number | null;
-    has_phone?: boolean;
-    sources?: string[];
-  }
-): Promise<void> {
-  const supabase = await createClient();
+export async function inviteUserAction(prevState: any, formData: FormData) {
+  try {
+    const agencyId = formData.get("agencyId") as string;
+    const email = formData.get("email") as string;
+    const role = formData.get("role") as "admin" | "agent";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+    await checkAgencyAdminRights(agencyId);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
+    const supabase = await createClient();
+    
+    // Utilisation de l'API admin de Supabase pour inviter un utilisateur
+    // Cela déclenche l'email via le SMTP Brevo configuré
+    const { error: authError } = await supabase.auth.admin.inviteUserByEmail(email, {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://mandathunt.vercel.app'}/mot-de-passe`,
+      data: {
+        agency_id: agencyId,
+        role: role
+      }
+    });
 
-  if (!profile) throw new Error('Profil introuvable');
-
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
-  }
-
-  const { error } = await supabase
-    .from('agencies')
-    .update({ criteria })
-    .eq('id', agencyId);
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
-}
-
-export async function createColumn(
-  agencyId: string,
-  name: string,
-  color: string
-): Promise<void> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) throw new Error('Profil introuvable');
-
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
-  }
-
-  const { data: maxPos } = await supabase
-    .from('columns')
-    .select('position')
-    .eq('agency_id', agencyId)
-    .order('position', { ascending: false })
-    .limit(1)
-    .single();
-
-  const position = maxPos ? maxPos.position + 1 : 0;
-
-  const { error } = await supabase.from('columns').insert({
-    agency_id: agencyId,
-    name,
-    color,
-    position,
-  });
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
-  revalidatePath('/');
-}
-
-export async function updateColumn(
-  agencyId: string,
-  columnId: string,
-  name: string,
-  color: string
-): Promise<void> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) throw new Error('Profil introuvable');
-
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
-  }
-
-  const { error } = await supabase
-    .from('columns')
-    .update({ name, color })
-    .eq('id', columnId)
-    .eq('agency_id', agencyId);
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
-  revalidatePath('/');
-}
-
-export async function deleteColumn(
-  agencyId: string,
-  columnId: string
-): Promise<void> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) throw new Error('Profil introuvable');
-
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
-  }
-
-  const { error } = await supabase
-    .from('columns')
-    .delete()
-    .eq('id', columnId)
-    .eq('agency_id', agencyId);
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
-  revalidatePath('/');
-}
-
-export async function reorderColumns(
-  agencyId: string,
-  columnIds: string[]
-): Promise<void> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) throw new Error('Profil introuvable');
-
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
-  }
-
-  const updates = columnIds.map((id, index) =>
-    supabase
-      .from('columns')
-      .update({ position: index })
-      .eq('id', id)
-      .eq('agency_id', agencyId)
-  );
-
-  await Promise.all(updates);
-
-  revalidatePath('/reglages');
-  revalidatePath('/');
-}
-
-export async function inviteUser(
-  agencyId: string,
-  email: string,
-  role: 'admin' | 'agent',
-  firstName: string,
-  lastName: string
-): Promise<void> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) throw new Error('Profil introuvable');
-
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
-  }
-
-  if (profile.role === 'admin' && role === 'admin') {
-    throw new Error(
-      "Permission refusée : un admin ne peut pas créer d'autres admins"
-    );
-  }
-
-  const { error: authError } = await supabase.auth.admin.inviteUserByEmail(
-    email,
-    {
-      redirectTo: 'https://mandathunt.vercel.app/mot-de-passe',
+    if (authError) {
+      return { error: "Erreur lors de l'invitation : " + authError.message };
     }
-  );
 
-  if (authError) throw authError;
-
-  const { data: users, error: listError } =
-    await supabase.auth.admin.listUsers();
-  if (listError) throw listError;
-
-  const invitedUser = users.users.find((u) => u.email === email);
-  if (!invitedUser) throw new Error('Utilisateur invité introuvable');
-
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: invitedUser.id,
-    agency_id: agencyId,
-    role,
-    email,
-    first_name: firstName,
-    last_name: lastName,
-  });
-
-  if (profileError) throw profileError;
-
-  revalidatePath('/reglages');
+    revalidatePath("/reglages");
+    return { success: `Invitation envoyée à ${email}` };
+  } catch (error: any) {
+    return { error: error.message || "Une erreur inattendue est survenue" };
+  }
 }
 
-export async function inviteUserByEmail(
-  agencyId: string,
-  email: string,
-  role: 'admin' | 'agent',
-  firstName: string,
-  lastName: string
-): Promise<void> {
-  return inviteUser(agencyId, email, role, firstName, lastName);
+export async function deleteUserAction(prevState: any, formData: FormData) {
+  try {
+    const userId = formData.get("userId") as string;
+    
+    // On récupère l'agencyId via l'utilisateur cible pour vérifier les droits
+    const supabase = await createClient();
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("agency_id")
+      .eq("id", userId)
+      .single();
+
+    if (!targetProfile) {
+      return { error: "Utilisateur introuvable" };
+    }
+
+    await checkAgencyAdminRights(targetProfile.agency_id);
+
+    // Suppression du profil (la cascade ou un trigger devrait gérer auth.users, 
+    // ou on utilise l'API admin si nécessaire. Ici on supprime la ligne profile)
+    const { error } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    if (error) {
+      return { error: "Erreur lors de la suppression : " + error.message };
+    }
+
+    revalidatePath("/reglages");
+    return { success: "Utilisateur supprimé avec succès" };
+  } catch (error: any) {
+    return { error: error.message || "Une erreur inattendue est survenue" };
+  }
 }
 
-export async function updateUserRole(
-  agencyId: string,
-  userId: string,
-  role: 'admin' | 'agent'
-): Promise<void> {
-  const supabase = await createClient();
+export async function addColumnAction(prevState: any, formData: FormData) {
+  try {
+    const agencyId = formData.get("agencyId") as string;
+    const name = formData.get("name") as string;
+    const color = formData.get("color") as string || "slate";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+    await checkAgencyAdminRights(agencyId);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
+    const supabase = await createClient();
+    
+    // Obtenir la position maximale actuelle pour la nouvelle colonne
+    const { data: columns } = await supabase
+      .from("columns")
+      .select("position")
+      .eq("agency_id", agencyId)
+      .order("position", { ascending: false })
+      .limit(1);
 
-  if (!profile) throw new Error('Profil introuvable');
+    const newPosition = columns && columns.length > 0 ? columns[0].position + 1 : 1;
 
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
+    const { error } = await supabase
+      .from("columns")
+      .insert({ 
+        agency_id: agencyId, 
+        name, 
+        color, 
+        position: newPosition 
+      });
 
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
+    if (error) {
+      return { error: "Erreur lors de l'ajout de la colonne : " + error.message };
+    }
+
+    revalidatePath("/reglages");
+    return { success: "Colonne ajoutée" };
+  } catch (error: any) {
+    return { error: error.message || "Une erreur inattendue est survenue" };
   }
-
-  if (profile.role === 'admin' && role === 'admin') {
-    throw new Error(
-      "Permission refusée : un admin ne peut pas créer d'autres admins"
-    );
-  }
-
-  const { error } = await supabase
-    .from('profiles')
-    .update({ role })
-    .eq('id', userId)
-    .eq('agency_id', agencyId);
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
 }
 
-export async function removeUser(
-  agencyId: string,
-  userId: string
-): Promise<void> {
-  const supabase = await createClient();
+export async function deleteColumnAction(formData: FormData) {
+  try {
+    const columnId = formData.get("columnId") as string;
+    const agencyId = formData.get("agencyId") as string;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+    await checkAgencyAdminRights(agencyId);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, agency_id')
-    .eq('id', user.id)
-    .single();
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("columns")
+      .delete()
+      .eq("id", columnId);
 
-  if (!profile) throw new Error('Profil introuvable');
+    if (error) {
+      throw new Error("Erreur lors de la suppression de la colonne : " + error.message);
+    }
 
-  const isSuperadmin = profile.role === 'superadmin';
-  const isAdminWithAuthority =
-    profile.role === 'admin' && profile.agency_id === agencyId;
-
-  if (!isSuperadmin && !isAdminWithAuthority) {
-    throw new Error('Permission refusée');
+    revalidatePath("/reglages");
+  } catch (error: any) {
+    console.error("deleteColumnAction error:", error);
+    // On ne retourne pas d'erreur au formulaire ici car c'est un bouton direct, 
+    // mais on pourrait ajouter un toast côté client si nécessaire.
   }
-
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('id', userId)
-    .eq('agency_id', agencyId);
-
-  if (profileError) throw profileError;
-
-  if (isSuperadmin) {
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-    if (authError) throw authError;
-  }
-
-  revalidatePath('/reglages');
 }
 
-export async function setAuthorityAdmin(
-  agencyId: string,
-  adminId: string | null
-): Promise<void> {
-  const supabase = await createClient();
+export async function updateAuthorityAction(prevState: any, formData: FormData) {
+  try {
+    const agencyId = formData.get("agencyId") as string;
+    const newAdminId = formData.get("newAdminId") as string; // Peut être "null" ou "none"
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+    // Seul le superadmin peut changer l'autorité
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Non authentifié");
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-  if (!profile || profile.role !== 'superadmin') {
-    throw new Error(
-      "Permission refusée : seul le superadmin peut modifier l'autorité"
-    );
+    if (profile?.role !== "superadmin") {
+      throw new Error("Seul le superadmin peut modifier l'autorité de l'agence");
+    }
+
+    const valueToSet = newAdminId === "none" || newAdminId === "" ? null : newAdminId;
+
+    const { error } = await supabase
+      .from("agencies")
+      .update({ authority_admin_id: valueToSet })
+      .eq("id", agencyId);
+
+    if (error) {
+      return { error: "Erreur lors de la mise à jour de l'autorité : " + error.message };
+    }
+
+    revalidatePath("/reglages");
+    return { success: "Autorité de gestion mise à jour" };
+  } catch (error: any) {
+    return { error: error.message || "Une erreur inattendue est survenue" };
   }
-
-  const { error } = await supabase
-    .from('agencies')
-    .update({ authority_admin_id: adminId })
-    .eq('id', agencyId);
-
-  if (error) throw error;
-
-  revalidatePath('/reglages');
 }
