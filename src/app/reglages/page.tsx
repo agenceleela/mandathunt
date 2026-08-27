@@ -7,6 +7,7 @@ import { ColumnsManager, type ColumnRow } from '@/components/admin/ColumnsManage
 import { UsersManager, type UserRow } from '@/components/admin/UsersManager'
 import { AgencySelector } from '@/components/admin/AgencySelector'
 import { AuthoritySelect } from '@/components/admin/AuthoritySelect'
+import { LogoutButton } from '@/components/LogoutButton'
 
 export const metadata: Metadata = {
   title: 'Réglages — MandatHunt',
@@ -121,7 +122,19 @@ export default async function ReglagesPage({
   return (
     <div className="container mx-auto py-8 max-w-4xl">
       <div className="mb-8 space-y-4">
-        <h1 className="text-3xl font-bold">Réglages</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <h1 className="text-3xl font-bold">Réglages</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-500">{user.email}</span>
+            <a
+              href="/"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100"
+            >
+              ← Board
+            </a>
+            <LogoutButton />
+          </div>
+        </div>
         {role === 'superadmin' && agencies.length > 0 && (
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">Agence :</span>

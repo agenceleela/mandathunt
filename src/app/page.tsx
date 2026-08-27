@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Board, type Column } from '@/components/Board'
 import type { Listing } from '@/components/ListingCard'
+import { LogoutButton } from '@/components/LogoutButton'
 
 export const metadata: Metadata = {
   title: 'Tableau de bord — MandatHunt',
@@ -182,14 +183,18 @@ export default async function HomePage() {
               {role === 'superadmin' ? ' · superadmin' : ''}
             </p>
           </div>
-          {canAccessSettings && (
-            <a
-              href="/reglages"
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100"
-            >
-              Réglages
-            </a>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-500">{user.email}</span>
+            {canAccessSettings && (
+              <a
+                href="/reglages"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100"
+              >
+                Réglages
+              </a>
+            )}
+            <LogoutButton />
+          </div>
         </header>
 
         <Board columns={columns} listings={listings} />
