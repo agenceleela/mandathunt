@@ -1,107 +1,102 @@
-'use client'
+'use client';
 
-import { useState, useTransition } from 'react'
-import { inviteUser, setAgencyAuthority } from '@/lib/admin/actions'
+import { useState, useActionState } from 'react';
+import { setAuthorityAdmin } from '@/lib/admin/actions';
+
+interface AuthoritySelectProps {
+  agencyId: string;
+  currentAdminId?: string | null;
+  agencyAdmins: Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  }>;
+}
 
 export function AuthoritySelect({
   agencyId,
-  admins,
-  current,
-}: {
-  agencyId: string
-  admins: { id: string; name: string }[]
-  current: string | null
-}) {
-  const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
+  currentAdminId,
+  agencyAdmins,
+}: AuthoritySelectProps) {
+  const [selectedAdmin, setSelectedAdmin] = useState<string | null>(
+    currentAdminId || ''
+  );
+  const [state, formAction, isPending] = useActionState(
+    async (_prevState: unknown, formData: FormData) => {
+      const adminId = formData.get('adminId') as string;
+      try {
+        await setAuthorityAdmin(agencyId, adminId || null);
+        return { success: true, error: null };
+      } catch (error) {
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Erreur lors de la mise à jour',
+        };
+      }
+    },
+    null
+  );
 
-  const change = (value: string) => {
-    setError(null)
-    startTransition(async () => {
-      await setAgencyAuthority(agencyId, value || null)
-    })
-  }
-
-  const addAdmin = async () => {
-    setError(null)
-    setInfo(null)
-    if (!email.trim() || !firstName.trim() || !lastName.trim()) {
-      setError('Tous les champs sont obligatoires.')
-      return
-    }
-    try {
-      await inviteUser(agencyId, email, 'admin', firstName, lastName)
-      setInfo('Invitation admin envoyée par email.')
-      setEmail('')
-      setFirstName('')
-      setLastName('')
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Erreur lors de l\'invitation.'
-      )
-    }
-  }
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    formAction(new FormData(e.currentTarget));
+  };
 
   return (
-    <div className="space-y-4">
-      <label className="block text-sm">
-        <span className="text-gray-600">Autorité sur cette zone</span>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label
+          htmlFor="adminId"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          Autorité sur les réglages
+        </label>
         <select
-          value={current ?? ''}
-          onChange={(e) => change(e.target.value)}
-          className="mt-1 w-full rounded border border-gray-300 px-2 py-2 text-sm bg-white text-gray-900"
+          id="adminId"
+          name="adminId"
+          value={selectedAdmin || ''}
+          onChange={(e) => setSelectedAdmin(e.target.value || null)}
+          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">Superadmin uniquement</option>
-          {admins.map((a) => (
-            <option key={a.id} value={a.id}>
-              Superadmin + {a.name}
+          {agencyAdmins.map((admin) => (
+            <option key={admin.id} value={admin.id}>
+              Superadmin + {admin.first_name} {admin.last_name} ({admin.email})
             </option>
           ))}
         </select>
-      </label>
-      {pending && <p className="text-xs text-gray-500">Enregistrement…</p>}
-
-      <div className="space-y-2 pt-2 border-t border-gray-200">
-        <span className="block text-sm font-medium text-gray-700">
-          Ajouter un admin
-        </span>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            placeholder="Prénom"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            className="px-2 py-2 border border-gray-300 rounded bg-white text-gray-900 text-sm"
-          />
-          <input
-            placeholder="Nom"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            className="px-2 py-2 border border-gray-300 rounded bg-white text-gray-900 text-sm"
-          />
-        </div>
-        <div className="flex gap-2">
-          <input
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="flex-1 px-2 py-2 border border-gray-300 rounded bg-white text-gray-900 text-sm"
-          />
-          <button
-            type="button"
-            onClick={addAdmin}
-            className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-          >
-            Ajouter un admin
-          </button>
-        </div>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {info && <p className="text-green-600 text-sm">{info}</p>}
+        <p className="mt-2 text-sm text-gray-600">
+          {selectedAdmin
+            ? 'Le superadmin et l\'admin sélectionné pourront modifier les réglages de cette agence.'
+            : 'Seul le superadmin pourra modifier les réglages de cette agence.'}
+        </p>
       </div>
-    </div>
-  )
+
+      {state?.error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm text-red-800">{state.error}</p>
+        </div>
+      )}
+
+      {state?.success && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+          <p className="text-sm text-green-800">
+            Autorité mise à jour avec succès
+          </p>
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={isPending}
+        className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isPending ? 'Enregistrement...' : 'Enregistrer'}
+      </button>
+    </form>
+  );
 }
