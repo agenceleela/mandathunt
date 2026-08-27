@@ -25,7 +25,8 @@ async function requireAdmin(agencyId: string) {
     .single()
   if (!profile) redirect('/')
   const role = profile.role as string
-  if (role === 'superadmin') return { userId: user.id, role: 'superadmin' as const }
+  if (role === 'superadmin')
+    return { userId: user.id, role: 'superadmin' as const }
   if (role === 'admin' && profile.agency_id === agencyId)
     return { userId: user.id, role: 'admin' as const }
   redirect('/')
@@ -37,11 +38,8 @@ export async function updateZone(
   postalCode: string,
   radiusKm: number
 ): Promise<void> {
+  await requireAdmin(agencyId)
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
   const { error } = await supabase
     .from('agencies')
     .update({ city, postal_code: postalCode, radius_km: radiusKm })
@@ -61,11 +59,8 @@ export async function updateCriteria(
     sources: string[]
   }
 ): Promise<void> {
+  await requireAdmin(agencyId)
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
   const { error } = await supabase
     .from('agencies')
     .update({ criteria })
@@ -79,11 +74,8 @@ export async function createColumn(
   name: string,
   color: string
 ): Promise<void> {
+  await requireAdmin(agencyId)
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
   const { data: maxPos } = await supabase
     .from('columns')
     .select('position')
@@ -106,10 +98,13 @@ export async function updateColumn(
   color: string
 ): Promise<void> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { data: column } = await supabase
+    .from('columns')
+    .select('agency_id')
+    .eq('id', columnId)
+    .single()
+  if (!column) throw new Error('Colonne introuvable')
+  await requireAdmin(column.agency_id)
   const { error } = await supabase
     .from('columns')
     .update({ name, color })
@@ -121,16 +116,13 @@ export async function updateColumn(
 
 export async function deleteColumn(columnId: string): Promise<void> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
   const { data: column } = await supabase
     .from('columns')
     .select('agency_id')
     .eq('id', columnId)
     .single()
   if (!column) throw new Error('Colonne introuvable')
+  await requireAdmin(column.agency_id)
   const { data: firstColumn } = await supabase
     .from('columns')
     .select('id')
@@ -178,20 +170,23 @@ export async function inviteUser(
   const caller = await requireAdmin(agencyId)
   const cleanEmail = email.trim().toLowerCase()
   if (!cleanEmail) throw new Error('Email invalide')
-  // un admin ne peut créer que des agents ; un superadmin peut créer admin/agent
+  // un admin ne peut inviter que des agents
   const targetRole: 'admin' | 'agent' =
     caller.role === 'admin' ? 'agent' : role
   const admin = serviceClient()
-  const { data: authData, error: authError } =
-    await admin.auth.admin.createUser({
-      email: cleanEmail,
-      password: `${Math.random().toString(36).slice(2, 12)}A1!`,
-      email_confirm: true,
-    })
+  const { error: authError } = await admin.auth.admin.inviteUserByEmail(
+    cleanEmail,
+    {
+      data: {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+      },
+    }
+  )
   if (authError) throw authError
-  if (!authData.user) throw new Error('Utilisateur non créé')
+  // Créer le profil en base (l'utilisateur acceptera l'invitation par email)
   const { error: profileError } = await admin.from('profiles').insert({
-    id: authData.user.id,
+    id: crypto.randomUUID(),
     agency_id: agencyId,
     role: targetRole,
     email: cleanEmail,
