@@ -24,26 +24,25 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-  // Routes publiques (login uniquement)
-  const isLoginRoute = request.nextUrl.pathname === '/login'
+  const pathname = request.nextUrl.pathname
+  const isLoginRoute = pathname === '/login'
+  const isPasswordRoute = pathname === '/mot-de-passe'
 
-  if (!session && !isLoginRoute) {
-    // Pas de session → redirect vers /login
+  if (!session && !isLoginRoute && !isPasswordRoute) {
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+    loginUrl.searchParams.set('redirectedFrom', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
   if (session && isLoginRoute) {
-    // Déjà connecté → redirect vers /
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // Vérifier que la session a un profil associé
-  if (session && !isLoginRoute) {
+  if (session && !isLoginRoute && !isPasswordRoute) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('id, role, agency_id')
@@ -51,7 +50,6 @@ export async function middleware(request: NextRequest) {
       .single()
 
     if (!profile) {
-      // Session sans profil → logout + message
       await supabase.auth.signOut()
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('error', 'no_profile')
@@ -64,13 +62,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
