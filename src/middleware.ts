@@ -1,10 +1,11 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
-  })
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,56 +13,82 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
-          })
+          );
         },
       },
     }
-  )
+  );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname
-  const isLoginRoute = pathname === '/login'
-  const isPasswordRoute = pathname === '/mot-de-passe'
-
-  if (!session && !isLoginRoute && !isPasswordRoute) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirectedFrom', pathname)
-    return NextResponse.redirect(loginUrl)
+  // Routes publiques
+  if (
+    request.nextUrl.pathname === '/login' ||
+    request.nextUrl.pathname === '/mot-de-passe'
+  ) {
+    // Si déjà connecté, rediriger vers /
+    if (user) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    return supabaseResponse;
   }
 
-  if (session && isLoginRoute) {
-    return NextResponse.redirect(new URL('/', request.url))
+  // Routes protégées : vérifier authentification
+  if (!user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
 
-  if (session && !isLoginRoute && !isPasswordRoute) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, role, agency_id')
-      .eq('id', session.user.id)
-      .single()
+  // Vérifier le profil et le rôle
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('role, agency_id, id')
+    .eq('id', user.id)
+    .single();
 
-    if (!profile) {
-      await supabase.auth.signOut()
-      const loginUrl = new URL('/login', request.url)
-      loginUrl.searchParams.set('error', 'no_profile')
-      return NextResponse.redirect(loginUrl)
+  if (error || !profile) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  // Route /reglages : accessible uniquement aux admin et superadmin
+  if (request.nextUrl.pathname === '/reglages') {
+    if (profile.role !== 'admin' && profile.role !== 'superadmin') {
+      return NextResponse.redirect(new URL('/', request.url));
     }
   }
 
-  return supabaseResponse
+  // Si l'utilisateur n'a pas encore de mot de passe (invitation en cours)
+  // et qu'il n'est pas sur /mot-de-passe, rediriger
+  const { data: userData } = await supabase.auth.admin.getUserById(user.id);
+  if (
+    userData?.user &&
+    !userData.user.last_sign_in_at &&
+    request.nextUrl.pathname !== '/mot-de-passe'
+  ) {
+    return NextResponse.redirect(new URL('/mot-de-passe', request.url));
+  }
+
+  return supabaseResponse;
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+};
