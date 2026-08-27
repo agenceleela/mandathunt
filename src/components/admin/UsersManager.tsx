@@ -2,16 +2,6 @@
 
 import { useState } from 'react';
 import { inviteUser, updateUserRole, removeUser } from '@/lib/admin/actions';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 interface User {
   id: string;
@@ -79,6 +69,11 @@ export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersMan
     }
   };
 
+  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  const selectClass = "px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white";
+  const btnClass = "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const btnDestructiveClass = "px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-50";
+
   return (
     <div className="space-y-6">
       <div className="space-y-4">
@@ -94,25 +89,25 @@ export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersMan
               </div>
               {user.id !== currentUserId && user.role !== 'superadmin' && (
                 <>
-                  <Select
+                  <select
                     value={user.role}
-                    onValueChange={(value: 'admin' | 'agent') => handleRoleChange(user.id, value)}
+                    onChange={(e) => handleRoleChange(user.id, e.target.value as 'admin' | 'agent')}
+                    className={selectClass}
                   >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="agent">Agent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" variant="destructive" onClick={() => handleRemove(user.id)} disabled={pending}>
+                    <option value="admin">Admin</option>
+                    <option value="agent">Agent</option>
+                  </select>
+                  <button 
+                    onClick={() => handleRemove(user.id)} 
+                    disabled={pending}
+                    className={btnDestructiveClass}
+                  >
                     Supprimer
-                  </Button>
+                  </button>
                 </>
               )}
               {user.role === 'superadmin' && (
-                <span className="text-sm text-gray-500">Superadmin</span>
+                <span className="text-sm text-gray-500 italic">Superadmin</span>
               )}
             </div>
           ))}
@@ -123,48 +118,53 @@ export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersMan
         <h3 className="font-semibold">Inviter un utilisateur</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="firstName">Prénom</Label>
-            <Input
-              id="firstName"
+            <label className="block text-sm font-medium mb-1">Prénom</label>
+            <input
+              type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              className={inputClass}
             />
           </div>
           <div>
-            <Label htmlFor="lastName">Nom</Label>
-            <Input
-              id="lastName"
+            <label className="block text-sm font-medium mb-1">Nom</label>
+            <input
+              type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
+              className={inputClass}
             />
           </div>
         </div>
         <div>
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
+          <label className="block text-sm font-medium mb-1">Email</label>
+          <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className={inputClass}
           />
         </div>
         <div>
-          <Label htmlFor="role">Rôle</Label>
-          <Select value={role} onValueChange={(value: 'admin' | 'agent') => setRole(value)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="agent">Agent</SelectItem>
-            </SelectContent>
-          </Select>
+          <label className="block text-sm font-medium mb-1">Rôle</label>
+          <select 
+            value={role} 
+            onChange={(e) => setRole(e.target.value as 'admin' | 'agent')}
+            className={selectClass}
+          >
+            <option value="admin">Admin</option>
+            <option value="agent">Agent</option>
+          </select>
         </div>
         {error && <p className="text-red-600 text-sm">{error}</p>}
         {success && <p className="text-green-600 text-sm">{success}</p>}
-        <Button onClick={handleInvite} disabled={pending}>
+        <button 
+          onClick={handleInvite} 
+          disabled={pending}
+          className={btnClass}
+        >
           {pending ? 'Envoi en cours...' : 'Inviter'}
-        </Button>
+        </button>
       </div>
     </div>
   );
