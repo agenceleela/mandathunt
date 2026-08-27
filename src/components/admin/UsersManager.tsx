@@ -1,128 +1,170 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useActionState } from "react";
-import { deleteUserAction, inviteUserAction } from "@/lib/admin/actions";
-import { SubmitButton } from "@/components/SubmitButton";
+import { useState } from 'react';
+import { inviteUser, updateUserRole, removeUser } from '@/lib/admin/actions';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-type Profile = {
+interface User {
   id: string;
-  first_name: string | null;
-  last_name: string | null;
   email: string;
-  role: "superadmin" | "admin" | "agent";
-};
-
-// Composant isolé pour éviter l'erreur React #441 (Hooks dans une boucle .map)
-function DeleteUserForm({ userId, isSuperadmin }: { userId: string; isSuperadmin: boolean }) {
-  const [state, formAction, isPending] = useActionState(deleteUserAction, null);
-
-  if (!isSuperadmin) return null;
-
-  return (
-    <form action={formAction} className="inline">
-      <input type="hidden" name="userId" value={userId} />
-      <SubmitButton variant="destructive" size="sm" className="h-8 px-3 text-xs">
-        {isPending ? "..." : "Supprimer"}
-      </SubmitButton>
-      {state?.error && <p className="text-xs text-red-500 mt-1 absolute">{state.error}</p>}
-    </form>
-  );
+  first_name: string;
+  last_name: string;
+  role: 'superadmin' | 'admin' | 'agent';
 }
 
-export function UsersManager({ users, currentAgencyId, isSuperadmin }: { 
-  users: Profile[]; 
-  currentAgencyId: string;
-  isSuperadmin: boolean;
-}) {
-  const [state, formAction, isPending] = useActionState(inviteUserAction, null);
-  const [selectedRole, setSelectedRole] = useState<"admin" | "agent">("agent");
+interface UsersManagerProps {
+  agencyId: string;
+  initialUsers: User[];
+  currentUserId: string;
+}
 
-  const displayedUsers = isSuperadmin 
-    ? users 
-    : users.filter(u => u.role !== "superadmin");
+export function UsersManager({ agencyId, initialUsers, currentUserId }: UsersManagerProps) {
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [role, setRole] = useState<'admin' | 'agent'>('agent');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const handleInvite = async () => {
+    setError(null);
+    setSuccess(null);
+    if (!email || !firstName || !lastName) {
+      setError('Tous les champs sont obligatoires');
+      return;
+    }
+    setPending(true);
+    try {
+      await inviteUser(agencyId, email, role, firstName, lastName);
+      setSuccess(`Invitation envoyée à ${email}`);
+      setEmail('');
+      setFirstName('');
+      setLastName('');
+      setRole('agent');
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la création de l\'utilisateur');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'agent') => {
+    try {
+      await updateUserRole(userId, newRole);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la mise à jour du rôle');
+    }
+  };
+
+  const handleRemove = async (userId: string) => {
+    if (!confirm('Supprimer cet utilisateur ?')) return;
+    setPending(true);
+    try {
+      await removeUser(userId);
+      setSuccess('Utilisateur supprimé');
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <form action={formAction} className="flex flex-col sm:flex-row gap-3 items-end sm:items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <div className="flex-1 w-full">
-          <label className="text-sm font-medium mb-1 block text-slate-700">Email du nouveau membre</label>
-          <input 
-            name="email" 
-            type="email" 
-            placeholder="prenom.nom@exemple.com" 
-            required 
-            className="flex h-9 w-full rounded-md border border-slate-300 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+      <div className="space-y-4">
+        <h3 className="font-semibold">Utilisateurs de l'agence</h3>
+        <div className="space-y-2">
+          {initialUsers.map((user) => (
+            <div key={user.id} className="flex items-center gap-2 p-2 border rounded">
+              <div className="flex-1">
+                <div className="font-medium">
+                  {user.first_name} {user.last_name}
+                </div>
+                <div className="text-sm text-gray-600">{user.email}</div>
+              </div>
+              {user.id !== currentUserId && user.role !== 'superadmin' && (
+                <>
+                  <Select
+                    value={user.role}
+                    onValueChange={(value: 'admin' | 'agent') => handleRoleChange(user.id, value)}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="agent">Agent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="destructive" onClick={() => handleRemove(user.id)} disabled={pending}>
+                    Supprimer
+                  </Button>
+                </>
+              )}
+              {user.role === 'superadmin' && (
+                <span className="text-sm text-gray-500">Superadmin</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-4 border-t">
+        <h3 className="font-semibold">Inviter un utilisateur</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="firstName">Prénom</Label>
+            <Input
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="lastName">Nom</Label>
+            <Input
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
-        <div className="w-full sm:w-48">
-          <label className="text-sm font-medium mb-1 block text-slate-700">Rôle</label>
-          <select 
-            name="role"
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value as "admin" | "agent")}
-            className="flex h-9 w-full items-center justify-between rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="admin">Admin (Chef d'agence)</option>
-            <option value="agent">Agent (Téléprospecteur)</option>
-          </select>
+        <div>
+          <Label htmlFor="role">Rôle</Label>
+          <Select value={role} onValueChange={(value: 'admin' | 'agent') => setRole(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="agent">Agent</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <input type="hidden" name="agencyId" value={currentAgencyId} />
-        
-        <SubmitButton className="w-full sm:w-auto mt-4 sm:mt-0">
-          Inviter
-        </SubmitButton>
-      </form>
-
-      {state?.error && (
-        <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200">
-          {state.error}
-        </div>
-      )}
-      {state?.success && (
-        <div className="p-3 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
-          {state.success}
-        </div>
-      )}
-
-      <div className="border rounded-lg overflow-hidden border-slate-200">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left p-3 font-medium text-slate-700">Nom</th>
-              <th className="text-left p-3 font-medium text-slate-700">Email</th>
-              <th className="text-left p-3 font-medium text-slate-700">Rôle</th>
-              <th className="text-right p-3 font-medium text-slate-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {displayedUsers.map((user) => (
-              <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                <td className="p-3 font-medium text-slate-900">
-                  {user.first_name} {user.last_name}
-                </td>
-                <td className="p-3 text-slate-600">{user.email}</td>
-                <td className="p-3">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    user.role === "admin" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-800"
-                  }`}>
-                    {user.role === "admin" ? "Admin" : "Agent"}
-                  </span>
-                </td>
-                <td className="p-3 text-right">
-                  <DeleteUserForm userId={user.id} isSuperadmin={isSuperadmin} />
-                </td>
-              </tr>
-            ))}
-            {displayedUsers.length === 0 && (
-              <tr>
-                <td colSpan={4} className="p-6 text-center text-slate-500">
-                  Aucun utilisateur dans cette agence.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {success && <p className="text-green-600 text-sm">{success}</p>}
+        <Button onClick={handleInvite} disabled={pending}>
+          {pending ? 'Envoi en cours...' : 'Inviter'}
+        </Button>
       </div>
     </div>
   );
