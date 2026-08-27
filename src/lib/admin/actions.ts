@@ -27,8 +27,15 @@ async function requireAdmin(agencyId: string) {
   const role = profile.role as string
   if (role === 'superadmin')
     return { userId: user.id, role: 'superadmin' as const }
-  if (role === 'admin' && profile.agency_id === agencyId)
-    return { userId: user.id, role: 'admin' as const }
+  if (role === 'admin' && profile.agency_id === agencyId) {
+    const { data: agency } = await supabase
+      .from('agencies')
+      .select('self_managed')
+      .eq('id', agencyId)
+      .single()
+    if (agency?.self_managed)
+      return { userId: user.id, role: 'admin' as const }
+  }
   redirect('/')
 }
 
@@ -144,11 +151,15 @@ export async function deleteColumn(columnId: string): Promise<void> {
 }
 
 export async function reorderColumns(columnIds: string[]): Promise<void> {
+  if (columnIds.length === 0) return
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { data: column } = await supabase
+    .from('columns')
+    .select('agency_id')
+    .eq('id', columnIds[0])
+    .single()
+  if (!column) throw new Error('Colonne introuvable')
+  await requireAdmin(column.agency_id)
   for (let i = 0; i < columnIds.length; i++) {
     const { error } = await supabase
       .from('columns')
@@ -174,9 +185,16 @@ export async function inviteUser(
   const targetRole: 'admin' | 'agent' =
     caller.role === 'admin' ? 'agent' : role
   const admin = serviceClient()
-  const { error: authError } = await admin.auth.admin.inviteUserByEmail(
+  const { data: existing } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', cleanEmail)
+    .maybeSingle()
+  if (existing) throw new Error('Un utilisateur existe déjà avec cet email')
+  const { data, error: authError } = await admin.auth.admin.inviteUserByEmail(
     cleanEmail,
     {
+      redirectTo: 'https://mandathunt.vercel.app/login',
       data: {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -184,9 +202,10 @@ export async function inviteUser(
     }
   )
   if (authError) throw authError
-  // Créer le profil en base (l'utilisateur acceptera l'invitation par email)
+  if (!data.user) throw new Error('Invitation échouée')
+  // Le profil est lié au VRAI id Auth retourné par l'invitation
   const { error: profileError } = await admin.from('profiles').insert({
-    id: crypto.randomUUID(),
+    id: data.user.id,
     agency_id: agencyId,
     role: targetRole,
     email: cleanEmail,
@@ -240,5 +259,29 @@ export async function removeUser(userId: string): Promise<void> {
   if (error) throw error
   const { error: authError } = await admin.auth.admin.deleteUser(userId)
   if (authError) throw authError
+  revalidatePath('/reglages')
+}
+
+export async function updateAgencyAuthority(
+  agencyId: string,
+  selfManaged: boolean
+): Promise<void> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (!profile || profile.role !== 'superadmin') redirect('/')
+  const admin = serviceClient()
+  const { error } = await admin
+    .from('agencies')
+    .update({ self_managed: selfManaged })
+    .eq('id', agencyId)
+  if (error) throw error
   revalidatePath('/reglages')
 }
