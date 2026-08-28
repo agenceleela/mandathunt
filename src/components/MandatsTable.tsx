@@ -49,20 +49,23 @@ export function MandatsTable({ rows }: { rows: MandatRow[] }) {
             <th className="p-3 font-semibold">RDV</th>
             <th className="p-3 font-semibold">Statut</th>
             <th className="p-3 font-semibold">Attribué à</th>
-            <th className="p-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200">
           {rows.length === 0 && (
             <tr>
-              <td colSpan={9} className="p-6 text-center text-gray-500">
+              <td colSpan={8} className="p-6 text-center text-gray-500">
                 Aucun mandat pour l'instant. Déplacez une annonce en
                 « RDV MANDAT » ou définissez une date de rendez-vous.
               </td>
             </tr>
           )}
           {rows.map((r) => (
-            <tr key={r.id} className="hover:bg-gray-50">
+            <tr
+              key={r.id}
+              onClick={() => setOpenId(r.id)}
+              className="cursor-pointer hover:bg-gray-50"
+            >
               <td className="p-3">
                 <div className="flex items-center gap-3">
                   {r.photo_url ? (
@@ -92,7 +95,10 @@ export function MandatsTable({ rows }: { rows: MandatRow[] }) {
                   ? `${r.price.toLocaleString('fr-FR')} €`
                   : '—'}
               </td>
-              <td className="p-3">
+              <td
+                className="p-3"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {r.phone_e164 ? (
                   <CopyPhoneButton phone={r.phone} phoneE164={r.phone_e164} />
                 ) : (
@@ -106,15 +112,8 @@ export function MandatsTable({ rows }: { rows: MandatRow[] }) {
               </td>
               <td className="p-3 text-gray-900">{fmtDateTime(r.rdv_date)}</td>
               <td className="p-3 text-gray-600">{r.status}</td>
-              <td className="p-3 text-gray-600">{r.assignee ?? 'Non attribué'}</td>
-              <td className="p-3 text-right">
-                <button
-                  type="button"
-                  onClick={() => setOpenId(r.id)}
-                  className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  Ouvrir
-                </button>
+              <td className="p-3 text-gray-600">
+                {r.assignee ?? 'Non attribué'}
               </td>
             </tr>
           ))}
