@@ -1,0 +1,13 @@
+{
+  "name": "mandathunt-ingestion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node ingest.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.109.0",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.49.0"
+  }
+}
