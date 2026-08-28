@@ -185,6 +185,12 @@ export default async function HomePage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-gray-500">{user.email}</span>
+            <a
+              href="/mandats"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100"
+            >
+              Mandats
+            </a>
             {canAccessSettings && (
               <a
                 href="/reglages"
