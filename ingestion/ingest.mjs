@@ -1,5 +1,6 @@
 import 'dotenv/config'
-import { chromium } from 'playwright'
+import { chromium } from 'playwright-extra'
+import StealthPlugin from 'puppeteer-extra-plugin-stealth'
 import { mkdirSync } from 'fs'
 import {
   supabaseAdmin,
@@ -9,6 +10,9 @@ import {
   upsertListing,
 } from './lib/supabase.mjs'
 import * as lbc from './sources/lbc.mjs'
+
+// Activation du mode furtif (masque navigator.webdriver, plugins, etc.)
+chromium.use(StealthPlugin())
 
 const args = process.argv.slice(2)
 const dryRun = args.includes('--dry-run')
@@ -30,27 +34,29 @@ async function main() {
     return
   }
 
-  const browser = await chromium.launch({ headless: false })
-  const context = await browser.newContext({
+  // Lancement avec un profil persistant (garde les cookies et le cache entre les runs)
+  const context = await chromium.launchPersistentContext('./browser-profile', {
+    headless: false,
     locale: 'fr-FR',
     viewport: { width: 1366, height: 900 },
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+    ],
+    ignoreHTTPSErrors: false,
   })
-  const page = await context.newPage()
+  const page = context.pages()[0] || (await context.newPage())
 
   try {
     for (const agency of selected) {
       console.log(`\n=== Agence : ${agency.name} (${agency.city}, ${agency.radius_km} km) ===`)
       const criteria = agency.criteria ?? null
-      const sources = criteria?.sources ?? ['lbc', 'lacentrale']
       const { contacterColumnId } = await getAgencyContext(sb, agency)
 
-      if (!sources.includes('lbc')) {
-        console.log('Source lbc désactivée pour cette agence.')
-        continue
-      }
-
+      console.log('→ Ouverture de la page de recherche...')
       const items = await lbc.scrapeListPage(page, agency)
       console.log(`${items.length} annonce(s) détectée(s) sur la liste.`)
 
@@ -83,7 +89,7 @@ async function main() {
       await delay(rand(6000, 12000))
     }
   } finally {
-    await browser.close()
+    await context.close()
   }
   console.log('\nTerminé.')
 }

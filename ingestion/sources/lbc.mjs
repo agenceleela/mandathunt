@@ -1,13 +1,11 @@
-// Scraper leboncoin — mode humain (fenêtre visible, délais aléatoires).
-// Les sélecteurs sont des meilleures estimations + fallbacks ;
-// ils seront calibrés au 1er run via les logs et captures debug/.
-
+// Scraper leboncoin — mode humain, parsing défensif, dumps de calibration.
 export const SOURCE = 'lbc'
 
-const rand = (min, max) =>
-  Math.floor(Math.random() * (max - min + 1)) + min
+const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export const delay = (ms) => new Promise((r) => setTimeout(r, ms))
+let dumpedCard = false
+let dumpedDetail = false
 
 export function buildSearchUrl(agency) {
   const city = encodeURIComponent((agency.city ?? '').trim())
@@ -36,19 +34,22 @@ function parseCityZip(text) {
 function parsePublished(text, now) {
   const t = (text ?? '').toLowerCase()
   if (t.includes("aujourd'hui")) return now
-  if (t.includes('hier'))
-    return new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+  if (t.includes('hier')) return new Date(Date.now() - 24 * 3600 * 1000).toISOString()
   const m = t.match(/(\d{2})\/(\d{2})\/(\d{4})/)
   if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T12:00:00`).toISOString()
   return now
 }
 
 async function waitForHuman(page, message) {
-  // eslint-disable-next-line no-console
   console.log(`\n⚠️ ${message}\n   Résolvez dans la fenêtre du navigateur, puis appuyez sur Entrée ici.`)
   const readline = await import('readline')
   const rl = readline.createInterface({ input: process.stdin })
-  await new Promise((r) => rl.question('', () => { rl.close(); r() }))
+  await new Promise((r) =>
+    rl.question('', () => {
+      rl.close()
+      r()
+    })
+  )
 }
 
 export async function detectCaptcha(page) {
@@ -56,9 +57,19 @@ export async function detectCaptcha(page) {
   return /vérifions|captcha|robot|sécurité inhabituelle/i.test(body)
 }
 
+async function dumpPage(page, path) {
+  try {
+    const { writeFileSync } = await import('fs')
+    const html = await page.content()
+    writeFileSync(path, html.slice(0, 400000))
+    console.log(`   [debug] HTML sauvé : ${path}`)
+  } catch {
+    // jamais bloquant
+  }
+}
+
 export async function scrapeListPage(page, agency) {
   const url = buildSearchUrl(agency)
-  // eslint-disable-next-line no-console
   console.log(`→ Ouverture ${url}`)
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
   await delay(rand(3000, 6000))
@@ -67,36 +78,68 @@ export async function scrapeListPage(page, agency) {
     await waitForHuman(page, 'CAPTCHA leboncoin détecté.')
     await delay(2000)
   }
+  await dumpPage(page, 'debug/liste-brute.html')
 
-  const cards = await page.locator('article, div[data-qa-id="listing"], a[href*="/ad/"]').all()
+  const cards = await page
+    .locator('article, div[data-qa-id="listing"], a[href*="/ad/"]')
+    .all()
+
   const items = []
-  for (const card of cards) {
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i]
     try {
-      const html = await card.innerHTML().catch(() => '')
-      const linkMatch = html.match(/href="(https?:\/\/www\.leboncoin\.fr\/(?:ad|voitures)\/[^"]+)"/)
-        ?? html.match(/href="(\/(?:ad|voitures)\/[^"]+)"/)
-      if (!linkMatch) continue
-      let href = linkMatch[1]
-      if (href.startsWith('/')) href = `https://www.leboncoin.fr${href}`
-      const idMatch = href.match(/\/(\d{6,})/)
+      const d = await card.evaluate((el) => {
+        const clone = el.cloneNode(true)
+        clone.querySelectorAll('style, script').forEach((n) => n.remove())
+        const text = (clone.textContent || '').replace(/\s+/g, ' ').trim()
+        const a =
+          el.querySelector('a[href*="/ad/"], a[href*="/voitures/"]') ||
+          el.closest('a') ||
+          el.querySelector('a')
+        const img = el.querySelector('img')
+        const t = el.querySelector(
+          '[data-qa-id="listing_title"], h3, [class*="title" i]'
+        )
+        return {
+          href: a ? a.href : null,
+          titleA: a
+            ? a.getAttribute('title') || a.getAttribute('aria-label')
+            : null,
+          titleT: t ? t.textContent.trim() : null,
+          img: img
+            ? img.getAttribute('src') || img.getAttribute('data-src')
+            : null,
+          text,
+        }
+      })
+      if (!d) continue
+
+      const idMatch = (d.href ?? '').match(/\/(\d{6,})/)
       if (!idMatch) continue
       const sourceId = idMatch[1]
-      if (items.some((i) => i.source_id === sourceId)) continue
+      if (items.some((x) => x.source_id === sourceId)) continue
 
-      const text = (await card.textContent().catch(() => '')) ?? ''
-      const img = await card.locator('img').first().getAttribute('src').catch(() => null)
-      const { city, postal_code } = parseCityZip(text)
+      if (!dumpedCard) {
+        try {
+          const { writeFileSync } = await import('fs')
+          writeFileSync('debug/carte-brute.html', (await card.innerHTML()).slice(0, 100000))
+          dumpedCard = true
+        } catch {}
+      }
+
+      const beforePrice = (d.text.split(/[\d\s]{2,}€/)[0] ?? '').trim()
+      const { city, postal_code } = parseCityZip(d.text)
 
       items.push({
         source: 'lbc',
         source_id: sourceId,
-        url: href,
-        title: text.split('\n')[0]?.slice(0, 140) ?? null,
-        photo_url: img,
+        url: d.href,
+        title: d.titleT || d.titleA || beforePrice || null,
+        photo_url: d.img ?? null,
         city,
         postal_code,
-        price: parsePrice(text),
-        published_at: parsePublished(text, new Date().toISOString()),
+        price: parsePrice(d.text),
+        published_at: parsePublished(d.text, new Date().toISOString()),
       })
     } catch {
       // carte illisible : on passe
@@ -113,18 +156,67 @@ export async function scrapeDetailPage(page, item) {
     await waitForHuman(page, 'CAPTCHA leboncoin sur la fiche.')
     await delay(2000)
   }
+  if (!dumpedDetail) {
+    await dumpPage(page, `debug/fiche-${item.source_id}.html`)
+    dumpedDetail = true
+  }
 
-  const body = (await page.textContent('body').catch(() => '')) ?? ''
+  // Extraction clé/valeur défensive (listes, dl/dt/dd, paires "Clé : valeur")
+  const specs = await page.evaluate(() => {
+    const map = {}
+    document.querySelectorAll('li, dl div, dt').forEach((el) => {
+      const txt = (el.textContent || '').replace(/\s+/g, ' ').trim()
+      const m = txt.match(/^([^:]{2,40})\s*:\s*(.+)$/)
+      if (m) map[m[1].toLowerCase()] = m[2]
+      if (el.tagName === 'DT' && el.nextElementSibling) {
+        map[txt.toLowerCase()] = (el.nextElementSibling.textContent || '').trim()
+      }
+    })
+    const body = (document.body.textContent || '').replace(/\s+/g, ' ')
+    return { map, body }
+  })
+
+  const get = (...keys) => {
+    for (const k of keys) {
+      const v = specs.map[k.toLowerCase()]
+      if (v) return v
+    }
+    return null
+  }
 
   const out = { ...item }
 
-  // Caractéristiques : paires clé/valeur génériques
-  const year = body.match(/(19|20)\d{2}/)
-  out.year = year ? parseInt(year[0], 10) : null
-  const km = body.match(/([\d\s]{2,})\s*km/)
-  out.mileage = km ? parseInt(km[1].replace(/\s/g, ''), 10) : null
-  out.fuel = /Essence/i.test(body) ? 'Essence' : /Diesel/i.test(body) ? 'Diesel' : /Électrique|Electrique/i.test(body) ? 'Électrique' : /Hybride/i.test(body) ? 'Hybride' : null
-  out.gearbox = /Automatique/i.test(body) ? 'Automatique' : /Manuelle/i.test(body) ? 'Manuelle' : null
+  const yearTxt =
+    get('année', 'annee', 'mise en circulation') ||
+    (specs.body.match(/(?:mise en circulation|année)\D{0,6}((?:19|20)\d{2})/i) || [])[1]
+  out.year = yearTxt
+    ? parseInt((yearTxt.match(/(19|20)\d{2}/) || [])[0] ?? '', 10) || null
+    : null
+
+  const kmTxt =
+    get('kilométrage', 'kilometrage') ||
+    (specs.body.match(/([\d\s]{2,})\s*km/) || [])[1]
+  out.mileage = kmTxt ? parseInt(kmTxt.replace(/\s/g, ''), 10) || null : null
+
+  out.fuel =
+    get('carburant', 'énergie', 'energie') ||
+    (/Essence/i.test(specs.body)
+      ? 'Essence'
+      : /Diesel/i.test(specs.body)
+        ? 'Diesel'
+        : /Électrique|Electrique/i.test(specs.body)
+          ? 'Électrique'
+          : /Hybride/i.test(specs.body)
+            ? 'Hybride'
+            : null)
+
+  out.gearbox =
+    get('boîte de vitesses', 'boite de vitesses', 'boîte', 'boite') ||
+    (/Automatique/i.test(specs.body)
+      ? 'Automatique'
+      : /Manuelle/i.test(specs.body)
+        ? 'Manuelle'
+        : null)
 
   const desc = await page
     .locator('#description, [data-qa-id="description"]')
@@ -133,25 +225,31 @@ export async function scrapeDetailPage(page, item) {
     .catch(() => null)
   out.description = desc ? desc.trim().slice(0, 5000) : null
 
-  // Téléphone : clic "Afficher le numéro"
+  // Téléphone : clic "Afficher le numéro" puis tel: ou regex
   out.phone = null
   out.phone_e164 = null
   try {
-    const btn = page.locator('button', { hasText: /Afficher le numéro/i }).first()
+    const btn = page
+      .locator('button', { hasText: /Afficher le numéro|Voir le numéro/i })
+      .first()
     if (await btn.count()) {
       await btn.click()
       await delay(rand(1500, 3000))
-      const tel = await page.locator('a[href^="tel:"]').first().getAttribute('href').catch(() => null)
-      if (tel) {
-        out.phone = tel.replace('tel:', '')
-      } else {
-        const t = (await page.textContent('body').catch(() => '')) ?? ''
-        const m = t.match(/0[1-9](?:[\s.-]?\d{2}){4}/)
-        if (m) out.phone = m[0]
-      }
-      const { toE164 } = await import('../lib/supabase.mjs')
-      out.phone_e164 = toE164(out.phone)
     }
+    const tel = await page
+      .locator('a[href^="tel:"]')
+      .first()
+      .getAttribute('href')
+      .catch(() => null)
+    if (tel) {
+      out.phone = tel.replace('tel:', '')
+    } else {
+      const t = (await page.textContent('body').catch(() => '')) ?? ''
+      const m = t.match(/0[1-9](?:[\s.-]?\d{2}){4}/)
+      if (m) out.phone = m[0]
+    }
+    const { toE164 } = await import('../lib/supabase.mjs')
+    out.phone_e164 = toE164(out.phone)
   } catch {
     // pas de téléphone récupéré : on garde null
   }

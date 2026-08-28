@@ -37,29 +37,34 @@ export async function getAgencyContext(sb, agency) {
   return { contacterColumnId: target ? target.id : null }
 }
 
+// D-H : un champ non lu (null) n'écarte pas l'annonce (calibration en cours).
+// D-I : has_phone retiré de l'évaluation (décision 2026-08-28).
 export function passesCriteria(parsed, criteria) {
   if (!criteria) return true
   if (
     criteria.price_min != null &&
-    (parsed.price == null || parsed.price < criteria.price_min)
+    parsed.price != null &&
+    parsed.price < criteria.price_min
   )
     return false
   if (
     criteria.price_max != null &&
-    (parsed.price == null || parsed.price > criteria.price_max)
+    parsed.price != null &&
+    parsed.price > criteria.price_max
   )
     return false
   if (
     criteria.year_min != null &&
-    (parsed.year == null || parsed.year < criteria.year_min)
+    parsed.year != null &&
+    parsed.year < criteria.year_min
   )
     return false
   if (
     criteria.mileage_max != null &&
-    (parsed.mileage == null || parsed.mileage > criteria.mileage_max)
+    parsed.mileage != null &&
+    parsed.mileage > criteria.mileage_max
   )
     return false
-  if (criteria.has_phone && !parsed.phone_e164) return false
   return true
 }
 
@@ -87,10 +92,7 @@ export async function upsertListing(sb, agency, contacterColumnId, parsed) {
       updates.phone = parsed.phone
       updates.phone_e164 = parsed.phone_e164
     }
-    const { error } = await sb
-      .from('listings')
-      .update(updates)
-      .eq('id', existing.id)
+    const { error } = await sb.from('listings').update(updates).eq('id', existing.id)
     if (error) throw error
     return { status: 'updated', id: existing.id }
   }
@@ -108,14 +110,14 @@ export async function upsertListing(sb, agency, contacterColumnId, parsed) {
       postal_code: parsed.postal_code,
       distance_km: null,
       price: parsed.price,
-      brand: parsed.brand,
-      model: parsed.model,
+      brand: parsed.brand ?? null,
+      model: parsed.model ?? null,
       year: parsed.year,
       mileage: parsed.mileage,
       fuel: parsed.fuel,
       gearbox: parsed.gearbox,
-      power: parsed.power,
-      condition: parsed.condition,
+      power: null,
+      condition: null,
       description: parsed.description,
       phone: parsed.phone,
       phone_e164: parsed.phone_e164,
